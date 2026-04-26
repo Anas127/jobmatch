@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 
-const PAYMENT_LINK = "https://your-payment-link.com";
+
 const API_URL = "https://jobmatch-7zo9.onrender.com";
 
 function App() {
