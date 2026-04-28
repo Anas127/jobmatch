@@ -23,6 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# In production, use Redis or a Database for this
 usage_tracker = {}
 FREE_LIMIT = 3
 
@@ -45,160 +46,112 @@ class JobResponse(BaseModel):
     recommended_course: dict
 
 
-# 🔥 CATEGORY DETECTION
 def detect_category(text):
     text = text.lower()
-
-    if "react" in text or "frontend" in text:
+    if any(x in text for x in ["react", "frontend", "nextjs", "tailwind"]):
         return "frontend"
-    if "spring" in text or "backend" in text:
+    if any(x in text for x in ["spring", "backend", "django", "node"]):
         return "backend"
-    if "data" in text or "etl" in text or "kafka" in text:
+    if any(x in text for x in ["data", "etl", "kafka", "sql"]):
         return "data engineering"
-    if "machine learning" in text or "ml" in text:
+    if any(x in text for x in ["machine learning", "ml", "ai", "pytorch"]):
         return "machine learning"
-    if "devops" in text or "docker" in text:
+    if any(x in text for x in ["devops", "docker", "kubernetes", "aws"]):
         return "devops"
-
     return "general"
 
 
 COURSE_MAP = {
-    "frontend": {
-        "title": "Become a Frontend Developer",
-        "link": "https://www.udemy.com/share/101Wvc/"
-    },
-    "backend": {
-        "title": "Become a Backend Developer",
-        "link": "https://www.udemy.com/share/1013gG/"
-    },
-    "data engineering": {
-        "title": "Become a Data Engineer",
-        "link": "https://www.udemy.com/share/104lbm/"
-    },
-    "machine learning": {
-        "title": "Become a Machine Learning Engineer",
-        "link": "https://www.udemy.com/share/10bYlh/"
-    },
-    "devops": {
-        "title": "Become a DevOps Engineer",
-        "link": "https://www.udemy.com/share/107YGQ/"
-    },
-    "general": {
-        "title": "Become a Software Engineer",
-        "link": "https://www.udemy.com/share/105wZ6/"
-    }
+    "frontend": {"title": "Become a Frontend Developer", "link": "https://www.udemy.com/share/101Wvc/"},
+    "backend": {"title": "Become a Backend Developer", "link": "https://www.udemy.com/share/1013gG/"},
+    "data engineering": {"title": "Become a Data Engineer", "link": "https://www.udemy.com/share/104lbm/"},
+    "machine learning": {"title": "Become a Machine Learning Engineer", "link": "https://www.udemy.com/share/10bYlh/"},
+    "devops": {"title": "Become a DevOps Engineer", "link": "https://www.udemy.com/share/107YGQ/"},
+    "general": {"title": "Become a Software Engineer", "link": "https://www.udemy.com/share/105wZ6/"}
 }
 
 
 @app.post("/extract", response_model=JobResponse)
 def extract_skills(request: JobRequest, req: Request):
-
     user_id = req.headers.get("x-forwarded-for", req.client.host)
 
-    # 🔥 LIMIT CHECK
-    if usage_tracker.get(user_id, 0) <= FREE_LIMIT:
+    # 1. CORRECTED LIMIT CHECK
+    current_usage = usage_tracker.get(user_id, 0)
+    if current_usage >= FREE_LIMIT:
+        # We return a specific payload that the frontend recognizes as "Limit Reached"
         return {
             "core_skills": [],
             "skills": ["LIMIT REACHED"],
             "missing_skills": [],
             "level": "Upgrade",
             "score": 0,
-            "explanation": "",
+            "explanation": "Please upgrade to see your full analysis.",
             "rejection_reasons": [],
             "priority_skills": [],
             "job_category": "",
             "recommended_course": {}
         }
 
-    usage_tracker[user_id] = usage_tracker.get(user_id, 0) + 1
+    usage_tracker[user_id] = current_usage + 1
 
-    # 🔥 CLEAN CV
-    cv_text = request.cv.strip()
-    if not cv_text or len(cv_text) < 30:
-        cv_text = "EMPTY"
-    else:
-        cv_text = cv_text[:1500]
-
-    # 🔥 LIMIT JOB TEXT
+    # 2. PREPARE INPUTS
+    cv_text = request.cv.strip()[:1500] if len(
+        request.cv.strip()) > 30 else "EMPTY"
     job_text = request.job_description[:1200]
-
     job_category = detect_category(job_text)
     course = COURSE_MAP.get(job_category, COURSE_MAP["general"])
 
     prompt = f"""
-You are a strict technical recruiter.
+    You are a strict technical recruiter. Analyze the job and CV.
+    
+    IF CV = EMPTY:
+    - score = 0
+    - explanation = "Please provide a CV for analysis."
+    
+    IF CV EXISTS:
+    - Be strict. 
+    - Provide a score (0-100) based on actual skill match.
+    - List concrete missing technologies.
+    
+    Return ONLY JSON:
+    {{
+     "core_skills": [],
+     "skills": [],
+     "missing_skills": [],
+     "level": "Junior/Mid/Senior",
+     "score": 85,
+     "explanation": "...",
+     "rejection_reasons": [],
+     "priority_skills": []
+    }}
 
-Analyze job and CV.
-
-RULES:
-
-IF CV = EMPTY:
-- score = -1
-- DO NOT invent candidate skills
-
-IF CV EXISTS:
-- Be strict like a real recruiter
-- ALWAYS return 4-6 missing skills
-- Missing skills must be concrete technologies
-- Provide 3-5 rejection reasons explaining why candidate would fail screening
-- Return top 3 priority skills to learn first
-
-Return ONLY JSON:
-
-{{
- "core_skills": [],
- "skills": [],
- "missing_skills": [],
- "level": "",
- "score": 0,
- "explanation": "",
- "rejection_reasons": [],
- "priority_skills": []
-}}
-
-Job:
-{job_text}
-
-CV:
-{cv_text}
-"""
-
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0
-    )
-
-    content = response.choices[0].message.content
+    Job: {job_text}
+    CV: {cv_text}
+    """
 
     try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",  # Optimized model name
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0
+        )
+        content = response.choices[0].message.content
         match = re.search(r"\{.*\}", content, re.DOTALL)
+        parsed = json.loads(match.group()) if match else {}
+    except Exception as e:
+        print(f"Error: {e}")
+        parsed = {"score": 0, "explanation": "Error processing request."}
 
-        if match:
-            parsed = json.loads(match.group())
-        else:
-            raise ValueError("No JSON found")
+    # Ensure all keys exist
+    defaults = {
+        "core_skills": [], "skills": [], "missing_skills": [],
+        "level": "N/A", "score": 0, "explanation": "",
+        "rejection_reasons": [], "priority_skills": []
+    }
+    for key, val in defaults.items():
+        if key not in parsed:
+            parsed[key] = val
 
-    except:
-        parsed = {
-            "core_skills": [],
-            "skills": ["Error"],
-            "missing_skills": [],
-            "level": "Unknown",
-            "score": -1,
-            "explanation": "",
-            "rejection_reasons": [],
-            "priority_skills": []
-        }
-
-    # 🔥 STRONG PAYWALL (SERVER SIDE)
-    if usage_tracker.get(user_id, 0) >= FREE_LIMIT:
-        parsed["rejection_reasons"] = []
-        parsed["priority_skills"] = []
-        parsed["explanation"] = parsed["explanation"][:120]
-
-    # 🔥 ADD MONETIZATION DATA
     parsed["job_category"] = job_category
     parsed["recommended_course"] = course
 
@@ -208,18 +161,17 @@ CV:
 @app.post("/upload-cv")
 async def upload_cv(file: UploadFile = File(...)):
     text = ""
-
-    if file.filename.endswith(".pdf"):
-        with pdfplumber.open(file.file) as pdf:
-            for page in pdf.pages:
-                text += page.extract_text() or ""
-
-    elif file.filename.endswith(".docx"):
-        doc = docx.Document(file.file)
-        for para in doc.paragraphs:
-            text += para.text + "\n"
-
-    else:
-        text = (await file.read()).decode("utf-8")
+    try:
+        if file.filename.endswith(".pdf"):
+            with pdfplumber.open(file.file) as pdf:
+                text = "".join(
+                    [page.extract_text() or "" for page in pdf.pages])
+        elif file.filename.endswith(".docx"):
+            doc = docx.Document(file.file)
+            text = "\n".join([para.text for para in doc.paragraphs])
+        else:
+            text = (await file.read()).decode("utf-8")
+    except Exception:
+        return {"text": "Error reading file"}
 
     return {"text": text}
