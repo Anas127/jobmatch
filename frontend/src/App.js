@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Analytics } from "@vercel/analytics/react";
 
 const API_URL = "https://jobmatch-7zo9.onrender.com";
@@ -10,7 +10,23 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Handle URL parameters on mount (for page refreshes and payment redirects)
+  // Memoized fetch function to prevent unnecessary re-renders or build warnings
+  const loadExistingReport = useCallback(async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/report/${id}`);
+      const data = await res.json();
+      if (data && !data.error) {
+        setReport(data);
+        // Persist the inputs so they don't look empty after redirect
+        setText((prev) => prev || data.job_text || "");
+        setCvText((prev) => prev || data.cv_text || "");
+      }
+    } catch (err) {
+      console.error("Fetch report failed:", err);
+    }
+  }, []);
+
+  // Handle URL parameters on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const reportId = params.get("report_id");
@@ -18,12 +34,12 @@ function App() {
 
     if (reportId) {
       if (isUnlockedRedirect) {
-        // Unlock first, then load
+        // Trigger the unlock endpoint first, then load the data
         fetch(`${API_URL}/unlock/${reportId}`, { method: "POST" })
           .then(() => loadExistingReport(reportId))
           .catch((err) => console.error("Unlock error:", err));
 
-        // Clean the URL
+        // Clean the URL for a professional look
         const url = new URL(window.location.href);
         url.searchParams.delete("unlocked");
         window.history.replaceState({}, "", url.toString());
@@ -31,22 +47,7 @@ function App() {
         loadExistingReport(reportId);
       }
     }
-  }, []);
-
-  const loadExistingReport = async (id) => {
-    try {
-      const res = await fetch(`${API_URL}/report/${id}`);
-      const data = await res.json();
-      if (data && !data.error) {
-        setReport(data);
-        // Fill inputs with saved data if they are empty
-        if (!text) setText(data.job_text || "");
-        if (!cvText) setCvText(data.cv_text || "");
-      }
-    } catch (err) {
-      console.error("Fetch report failed:", err);
-    }
-  };
+  }, [loadExistingReport]);
 
   const handleAnalyze = async () => {
     if (!text) return;
@@ -60,13 +61,12 @@ function App() {
       });
 
       if (!res.ok) throw new Error("Server error");
-
       const data = await res.json();
 
-      // Update URL so refresh doesn't lose data
+      // Update URL with the unique Supabase ID
       window.history.pushState({}, "", `?report_id=${data.id}`);
 
-      // CRITICAL: Fetch the fresh record we just created
+      // Immediately fetch the fresh record
       await loadExistingReport(data.id);
     } catch (err) {
       setErrorMessage("Analysis failed. Please check your connection.");
@@ -101,7 +101,7 @@ function App() {
           <div className="space-y-6">
             <div className="flex items-center gap-2 mb-8">
               <span className="text-4xl font-black tracking-tighter">
-                jobmatch.
+                jobmatch<span className="text-emerald-400">.</span>
               </span>
             </div>
 
@@ -137,7 +137,7 @@ function App() {
                 <input
                   type="file"
                   onChange={handleFileUpload}
-                  className="text-xs text-slate-500 w-40"
+                  className="text-xs text-slate-500 w-40 file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700"
                 />
               </div>
             </div>
@@ -150,7 +150,9 @@ function App() {
               {loading ? "AI is Analyzing..." : "Generate Analysis"}
             </button>
             {errorMessage && (
-              <p className="text-red-400 text-center text-xs">{errorMessage}</p>
+              <p className="text-red-400 text-center text-xs mt-2">
+                {errorMessage}
+              </p>
             )}
           </div>
 
@@ -225,8 +227,10 @@ function App() {
                         onClick={() => {
                           const baseUrl =
                             "https://jobskills.lemonsqueezy.com/checkout/buy/5fe468f4-a8c6-4222-bbd4-ad1492248a92";
-                          const redirect = `https://jobmatch-fjik.vercel.app/?report_id=${report.id}%26unlocked=true`;
-                          window.location.href = `${baseUrl}?checkout[custom][report_id]=${report.id}&redirect_url=${redirect}`;
+                          const dynamicRedirect = `https://jobmatch-fjik.vercel.app/?report_id=${report.id}&unlocked=true`;
+                          const encodedRedirect =
+                            encodeURIComponent(dynamicRedirect);
+                          window.location.href = `${baseUrl}?redirect_url=${encodedRedirect}`;
                         }}
                         className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl font-bold transition shadow-xl shadow-emerald-500/30 text-lg"
                       >
@@ -260,10 +264,10 @@ function App() {
                           {report.result?.priority_skills?.map((ps, i) => (
                             <div
                               key={i}
-                              className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-sm text-slate-200 flex justify-between items-center"
+                              className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-sm text-slate-200 flex justify-between items-center group"
                             >
-                              {ps}{" "}
-                              <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+                              <span>{ps}</span>
+                              <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest group-hover:text-emerald-400 transition">
                                 Urgent
                               </span>
                             </div>
