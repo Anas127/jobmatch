@@ -3,7 +3,9 @@ from pydantic import BaseModel
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
-import os, json, re
+import os
+import json
+import re
 from dotenv import load_dotenv
 import pdfplumber
 import docx
@@ -95,7 +97,7 @@ def extract_skills(request: JobRequest, req: Request):
     user_id = req.headers.get("x-forwarded-for", req.client.host)
 
     # 🔥 LIMIT CHECK
-    if usage_tracker.get(user_id, 0) >= FREE_LIMIT:
+    if usage_tracker.get(user_id, 0) <= FREE_LIMIT:
         return {
             "core_skills": [],
             "skills": ["LIMIT REACHED"],
@@ -191,7 +193,7 @@ CV:
         }
 
     # 🔥 STRONG PAYWALL (SERVER SIDE)
-    if usage_tracker.get(user_id, 0) <= FREE_LIMIT:
+    if usage_tracker.get(user_id, 0) >= FREE_LIMIT:
         parsed["rejection_reasons"] = []
         parsed["priority_skills"] = []
         parsed["explanation"] = parsed["explanation"][:120]
