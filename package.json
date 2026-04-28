@@ -5,6 +5,7 @@
     "tailwindcss": "^4.2.4"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "framer-motion": "^12.38.0"
   }
 }
