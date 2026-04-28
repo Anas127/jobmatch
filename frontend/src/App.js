@@ -49,14 +49,6 @@ function App() {
     }
   }, []);
 
-  // 🔥 AUTO CLEAR ERROR
-  useEffect(() => {
-    if (errorMessage) {
-      const timer = setTimeout(() => setErrorMessage(""), 4000);
-      return () => clearTimeout(timer);
-    }
-  }, [errorMessage]);
-
   const handleExtract = async () => {
     if (!text) return;
 
@@ -166,7 +158,21 @@ function App() {
           {/* RESULTS */}
           <div className="bg-slate-900 p-6 rounded-xl space-y-6">
             {errorMessage && (
-              <div className="bg-red-500/10 p-3 rounded">{errorMessage}</div>
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-4 rounded-lg space-y-3">
+                <p>{errorMessage}</p>
+
+                <button
+                  onClick={() =>
+                    window.open(
+                      "https://jobskills.lemonsqueezy.com/checkout/buy/5fe468f4-a8c6-4222-bbd4-ad1492248a92",
+                      "_blank",
+                    )
+                  }
+                  className="bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded text-white text-sm font-medium"
+                >
+                  Unlock Full Report — $3
+                </button>
+              </div>
             )}
 
             {!result && (
