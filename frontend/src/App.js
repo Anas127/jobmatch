@@ -87,9 +87,10 @@ function App() {
     setLoading(false);
   };
 
-  const hasCV = cvText.trim().length > 0;
+
 
   return (
+    <>
     <div className="min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 text-white">
       
       {/* NAVBAR */}
@@ -256,6 +257,8 @@ function App() {
         </motion.div>
       </div>
     </div>
+    <Analytics />
+    </>
   );
 }
 
