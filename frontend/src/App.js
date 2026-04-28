@@ -225,14 +225,18 @@ function App() {
                       </p>
                       <button
                         onClick={() => {
-                          const baseUrl =
+                          const checkoutBase =
                             "https://jobskills.lemonsqueezy.com/checkout/buy/5fe468f4-a8c6-4222-bbd4-ad1492248a92";
+
+                          // This is the "Magic Link" that brings the ID back to you
                           const dynamicRedirect = `https://jobmatch-fjik.vercel.app/?report_id=${report.id}&unlocked=true`;
-                          const encodedRedirect =
-                            encodeURIComponent(dynamicRedirect);
-                          window.location.href = `${baseUrl}?redirect_url=${encodedRedirect}`;
+
+                          // We wrap it in encodeURIComponent so characters like '?' don't get lost
+                          const finalUrl = `${checkoutBase}?embed=1&redirect_url=${encodeURIComponent(dynamicRedirect)}`;
+
+                          window.location.href = finalUrl;
                         }}
-                        className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl font-bold transition shadow-xl shadow-emerald-500/30 text-lg"
+                        className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-bold transition shadow-xl shadow-emerald-500/30 text-lg"
                       >
                         Unlock for $3
                       </button>
