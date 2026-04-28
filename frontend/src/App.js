@@ -8,8 +8,9 @@ function App() {
   const [cvText, setCvText] = useState("");
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
-  // Sync data on page load or payment redirect
+  // Handle URL parameters on mount (for page refreshes and payment redirects)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const reportId = params.get("report_id");
@@ -17,12 +18,12 @@ function App() {
 
     if (reportId) {
       if (isUnlockedRedirect) {
-        // 1. Tell backend to mark as paid
-        fetch(`${API_URL}/unlock/${reportId}`, { method: "POST" }).then(() =>
-          loadExistingReport(reportId),
-        );
+        // Unlock first, then load
+        fetch(`${API_URL}/unlock/${reportId}`, { method: "POST" })
+          .then(() => loadExistingReport(reportId))
+          .catch((err) => console.error("Unlock error:", err));
 
-        // 2. Clean URL of the "unlocked" flag for a clean look
+        // Clean the URL
         const url = new URL(window.location.href);
         url.searchParams.delete("unlocked");
         window.history.replaceState({}, "", url.toString());
@@ -36,74 +37,107 @@ function App() {
     try {
       const res = await fetch(`${API_URL}/report/${id}`);
       const data = await res.json();
-      if (!data.error) {
+      if (data && !data.error) {
         setReport(data);
-        setText(data.job_text || "");
-        setCvText(data.cv_text || "");
+        // Fill inputs with saved data if they are empty
+        if (!text) setText(data.job_text || "");
+        if (!cvText) setCvText(data.cv_text || "");
       }
     } catch (err) {
-      console.error("Failed to fetch report:", err);
+      console.error("Fetch report failed:", err);
     }
   };
 
   const handleAnalyze = async () => {
     if (!text) return;
     setLoading(true);
+    setErrorMessage("");
     try {
       const res = await fetch(`${API_URL}/extract`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ job_description: text, cv: cvText }),
       });
+
+      if (!res.ok) throw new Error("Server error");
+
       const data = await res.json();
 
-      // Update URL with the unique Supabase ID
+      // Update URL so refresh doesn't lose data
       window.history.pushState({}, "", `?report_id=${data.id}`);
 
-      // Set local state to show results immediately
-      setReport({ id: data.id, result: data.result, is_paid: false });
+      // CRITICAL: Fetch the fresh record we just created
+      await loadExistingReport(data.id);
     } catch (err) {
-      console.error("Analysis failed:", err);
-      alert("Something went wrong. Please try again.");
+      setErrorMessage("Analysis failed. Please check your connection.");
+    }
+    setLoading(false);
+  };
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${API_URL}/upload-cv`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      setCvText(data.text);
+    } catch (err) {
+      setErrorMessage("File upload failed.");
     }
     setLoading(false);
   };
 
   return (
     <>
-      <div className="min-h-screen bg-slate-950 text-white p-8 font-sans">
+      <div className="min-h-screen bg-slate-950 text-white p-6 md:p-12 font-sans">
         <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12">
-          {/* INPUT PANEL */}
+          {/* LEFT: INPUTS */}
           <div className="space-y-6">
-            <div className="flex items-center gap-2">
-              <span className="text-3xl font-black text-white tracking-tighter">
-                jobmatch
+            <div className="flex items-center gap-2 mb-8">
+              <span className="text-4xl font-black tracking-tighter">
+                jobmatch.
               </span>
-              <span className="w-2 h-2 bg-emerald-400 rounded-full mt-2"></span>
             </div>
 
             <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">
-                  Job Description
-                </label>
+              <label className="block">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">
+                  1. Job Details
+                </span>
                 <textarea
                   className="w-full h-64 bg-slate-900 border border-slate-800 p-4 rounded-2xl mt-2 focus:border-indigo-500 outline-none transition"
-                  placeholder="Paste the job requirements..."
+                  placeholder="Paste the job description..."
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">
-                  Your CV / Experience
-                </label>
+              <label className="block">
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-widest ml-1">
+                  2. Your Experience
+                </span>
                 <textarea
                   className="w-full h-32 bg-slate-900 border border-slate-800 p-4 rounded-2xl mt-2 focus:border-indigo-500 outline-none transition"
-                  placeholder="Paste your CV text..."
+                  placeholder="Paste CV text..."
                   value={cvText}
                   onChange={(e) => setCvText(e.target.value)}
+                />
+              </label>
+
+              <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex justify-between items-center">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                  Or upload PDF
+                </span>
+                <input
+                  type="file"
+                  onChange={handleFileUpload}
+                  className="text-xs text-slate-500 w-40"
                 />
               </div>
             </div>
@@ -111,51 +145,54 @@ function App() {
             <button
               onClick={handleAnalyze}
               disabled={loading || !text}
-              className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 rounded-2xl font-bold transition-all shadow-lg shadow-indigo-500/20"
+              className="w-full py-5 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 rounded-2xl font-bold transition-all shadow-xl shadow-indigo-600/20"
             >
-              {loading ? "Analyzing Skills..." : "Generate Report"}
+              {loading ? "AI is Analyzing..." : "Generate Analysis"}
             </button>
+            {errorMessage && (
+              <p className="text-red-400 text-center text-xs">{errorMessage}</p>
+            )}
           </div>
 
-          {/* OUTPUT PANEL */}
-          <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl min-h-[500px]">
+          {/* RIGHT: RESULTS */}
+          <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl min-h-[600px]">
             {!report ? (
-              <div className="flex flex-col items-center justify-center h-full text-slate-600 space-y-4 py-20 text-center">
-                <div className="w-16 h-16 border-2 border-slate-800 rounded-full flex items-center justify-center text-2xl font-light">
+              <div className="flex flex-col items-center justify-center h-full text-slate-600 py-32 text-center space-y-4">
+                <div className="w-12 h-12 border border-slate-800 rounded-full flex items-center justify-center">
                   ?
                 </div>
-                <p className="max-w-xs">
-                  Reports are generated by AI and saved securely to the cloud.
+                <p className="text-sm italic">
+                  Ready to match your skills with the market.
                 </p>
               </div>
             ) : (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                <div className="flex justify-between items-end pb-6 border-b border-slate-800">
+              <div className="space-y-10 animate-in fade-in duration-700">
+                <div className="flex justify-between items-end pb-8 border-b border-slate-800">
                   <div>
-                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">
+                    <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-2">
                       Match Score
                     </p>
-                    <h2 className="text-6xl font-black text-emerald-400 leading-none">
-                      {report.result.score}%
+                    <h2 className="text-7xl font-black text-emerald-400 leading-none tracking-tighter">
+                      {report.result?.score}%
                     </h2>
                   </div>
                   {report.is_paid && (
-                    <span className="bg-emerald-500/10 text-emerald-400 text-[10px] px-2 py-1 rounded-md font-black uppercase border border-emerald-500/20 tracking-widest">
-                      Full Access
+                    <span className="bg-emerald-500/10 text-emerald-400 text-[10px] px-3 py-1.5 rounded-lg font-black uppercase border border-emerald-500/20">
+                      Pro Report
                     </span>
                   )}
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-8">
                   <div>
-                    <h3 className="text-slate-300 font-bold mb-3 text-sm uppercase tracking-wider">
-                      Skill Gap
+                    <h3 className="text-slate-200 font-bold mb-4 text-xs uppercase tracking-widest flex items-center gap-2">
+                      Missing Critical Tech
                     </h3>
                     <div className="flex flex-wrap gap-2">
-                      {report.result.missing_skills?.map((s, i) => (
+                      {report.result?.missing_skills?.map((s, i) => (
                         <span
                           key={i}
-                          className="bg-slate-950 text-slate-300 border border-slate-800 px-3 py-1 rounded-lg text-xs font-medium"
+                          className="bg-slate-950 text-slate-300 border border-slate-800 px-4 py-1.5 rounded-xl text-xs font-medium uppercase tracking-tight"
                         >
                           {s}
                         </span>
@@ -164,45 +201,46 @@ function App() {
                   </div>
 
                   <div>
-                    <h3 className="text-slate-300 font-bold mb-2 text-sm uppercase tracking-wider">
-                      Recruiter Feedback
+                    <h3 className="text-slate-200 font-bold mb-3 text-xs uppercase tracking-widest">
+                      Recruiter Note
                     </h3>
-                    <p className="text-slate-400 text-sm leading-relaxed italic">
-                      {!report.is_paid
-                        ? report.result.explanation?.substring(0, 60) + "..."
-                        : report.result.explanation}
-                    </p>
+                    <div className="relative">
+                      <p className="text-slate-400 text-sm leading-relaxed italic">
+                        {!report.is_paid
+                          ? report.result?.explanation?.substring(0, 80) + "..."
+                          : report.result?.explanation}
+                      </p>
+                      {!report.is_paid && (
+                        <div className="absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-slate-900 to-transparent"></div>
+                      )}
+                    </div>
                   </div>
 
-                  {!report.is_paid && (
-                    <div className="bg-indigo-600/5 border border-indigo-500/20 p-6 rounded-2xl space-y-4">
-                      <p className="text-xs text-slate-400 text-center leading-relaxed">
-                        Unlock the full recruiter assessment, rejection risks,
-                        and your personalized learning roadmap.
+                  {!report.is_paid ? (
+                    <div className="bg-indigo-600/5 border border-indigo-500/20 p-8 rounded-3xl text-center space-y-6 mt-10">
+                      <p className="text-xs text-slate-400 leading-relaxed uppercase tracking-widest font-bold">
+                        Unlock PRO Report
                       </p>
                       <button
                         onClick={() => {
                           const baseUrl =
                             "https://jobskills.lemonsqueezy.com/checkout/buy/5fe468f4-a8c6-4222-bbd4-ad1492248a92";
-                          // We pass report_id in the redirect so we know who to unlock
                           const redirect = `https://jobmatch-fjik.vercel.app/?report_id=${report.id}%26unlocked=true`;
                           window.location.href = `${baseUrl}?checkout[custom][report_id]=${report.id}&redirect_url=${redirect}`;
                         }}
-                        className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-bold transition shadow-xl shadow-emerald-500/20"
+                        className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl font-bold transition shadow-xl shadow-emerald-500/30 text-lg"
                       >
-                        Unlock Full Report — $3
+                        Unlock for $3
                       </button>
                     </div>
-                  )}
-
-                  {report.is_paid && (
-                    <div className="pt-6 border-t border-slate-800 space-y-6 animate-in slide-in-from-top-2 duration-700">
+                  ) : (
+                    <div className="pt-8 border-t border-slate-800 space-y-8 animate-in zoom-in-95 duration-500">
                       <div>
-                        <h3 className="text-red-400 font-bold text-xs uppercase tracking-widest mb-3">
+                        <h3 className="text-red-400 font-bold text-xs uppercase tracking-widest mb-4 italic">
                           Rejection Risks
                         </h3>
                         <ul className="space-y-3">
-                          {report.result.rejection_reasons?.map((r, i) => (
+                          {report.result?.rejection_reasons?.map((r, i) => (
                             <li
                               key={i}
                               className="text-sm text-slate-300 flex items-start gap-3"
@@ -215,18 +253,18 @@ function App() {
                       </div>
 
                       <div>
-                        <h3 className="text-indigo-400 font-bold text-xs uppercase tracking-widest mb-3">
+                        <h3 className="text-indigo-400 font-bold text-xs uppercase tracking-widest mb-4 italic">
                           Priority Roadmap
                         </h3>
                         <div className="grid grid-cols-1 gap-2">
-                          {report.result.priority_skills?.map((ps, i) => (
+                          {report.result?.priority_skills?.map((ps, i) => (
                             <div
                               key={i}
-                              className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-sm text-slate-200 flex justify-between items-center group"
+                              className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-sm text-slate-200 flex justify-between items-center"
                             >
-                              <span>{ps}</span>
-                              <span className="text-[10px] text-slate-600 font-bold uppercase group-hover:text-emerald-400 transition">
-                                Action Item
+                              {ps}{" "}
+                              <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+                                Urgent
                               </span>
                             </div>
                           ))}
