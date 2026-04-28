@@ -8,6 +8,8 @@ const API_URL = "https://jobmatch-7zo9.onrender.com";
 const isUnlockedFromURL =
   new URLSearchParams(window.location.search).get("unlocked") === "true";
 
+const [errorMessage, setErrorMessage] = useState("");
+
 function App() {
   const [text, setText] = useState("");
   const [cvText, setCvText] = useState("");
@@ -49,6 +51,13 @@ function App() {
     }
   }, []);
 
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => setErrorMessage(""), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorMessage]);
+
   const handleExtract = async () => {
     if (!text) return;
     setLoading(true);
@@ -66,7 +75,7 @@ function App() {
       const data = await res.json();
 
       if (data.skills?.includes("LIMIT REACHED")) {
-        alert("Free limit reached. Upgrade to continue.");
+        setErrorMessage("Free limit reached. Upgrade to continue.");
         setLoading(false);
         return;
       }
@@ -123,13 +132,9 @@ function App() {
       <div className="min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 text-white">
         {/* NAVBAR */}
         <div className="flex items-center px-12 py-6 border-b border-slate-800 bg-slate-950">
-          <span className="text-lg font-semibold tracking-tight">
+          <span className="text-2xl font-bold tracking-tight">
             jobmatch<span className="text-emerald-400">.</span>
           </span>
-
-          <p className="text-xs text-slate-500 ml-2">
-            Know why you’re not getting hired
-          </p>
         </div>
 
         {/* MAIN */}
@@ -171,6 +176,23 @@ function App() {
 
           {/* RESULTS */}
           <div className="bg-slate-900 p-6 rounded-xl space-y-6">
+            {errorMessage && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-4 rounded-lg text-sm space-y-2">
+                <p>{errorMessage}</p>
+
+                <button
+                  onClick={() =>
+                    window.open(
+                      "https://jobskills.lemonsqueezy.com/checkout/buy/5fe468f4-a8c6-4222-bbd4-ad1492248a92",
+                      "_blank",
+                    )
+                  }
+                  className="bg-emerald-500 px-4 py-2 rounded text-white text-sm"
+                >
+                  Unlock — $3
+                </button>
+              </div>
+            )}
             {!result && (
               <p className="text-slate-400">Paste a job description to start</p>
             )}
