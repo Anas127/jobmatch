@@ -1,13 +1,11 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Request
 from pydantic import BaseModel
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
-import os
-import json
-import re
+import os, json, re
 from dotenv import load_dotenv
-import PyPDF2
+import pdfplumber
 import docx
 
 load_dotenv()
@@ -23,6 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 🔥 simple IP-based tracking (better than "default")
 usage_tracker = {}
 FREE_LIMIT = 3
 
@@ -41,12 +40,61 @@ class JobResponse(BaseModel):
     explanation: str
     rejection_reasons: List[str]
     priority_skills: List[str]
+    job_category: str
+    recommended_course: dict
+
+
+# 🔥 simple category detection (fast, no GPT needed)
+def detect_category(text):
+    text = text.lower()
+
+    if "react" in text or "frontend" in text:
+        return "frontend"
+    if "spring" in text or "backend" in text:
+        return "backend"
+    if "data" in text or "etl" in text:
+        return "data engineering"
+    if "machine learning" in text or "ml" in text:
+        return "machine learning"
+    if "devops" in text or "docker" in text:
+        return "devops"
+
+    return "general"
+
+
+COURSE_MAP = {
+    "frontend": {
+        "title": "Complete Frontend Developer Roadmap",
+        "link": "https://your-affiliate-link"
+    },
+    "backend": {
+        "title": "Backend Developer Bootcamp",
+        "link": "https://your-affiliate-link"
+    },
+    "data engineering": {
+        "title": "Data Engineering Bootcamp",
+        "link": "https://your-affiliate-link"
+    },
+    "machine learning": {
+        "title": "Machine Learning Roadmap",
+        "link": "https://your-affiliate-link"
+    },
+    "devops": {
+        "title": "DevOps Roadmap Course",
+        "link": "https://your-affiliate-link"
+    },
+    "general": {
+        "title": "Complete Software Engineering Roadmap",
+        "link": "https://your-affiliate-link"
+    }
+}
 
 
 @app.post("/extract", response_model=JobResponse)
-def extract_skills(request: JobRequest):
+def extract_skills(request: JobRequest, req: Request):
 
-    user_id = "default"
+    # 🔥 better tracking (per user IP)
+    user_id = req.client.host
 
     if usage_tracker.get(user_id, 0) >= FREE_LIMIT:
         return {
@@ -57,49 +105,33 @@ def extract_skills(request: JobRequest):
             "score": 0,
             "explanation": "",
             "rejection_reasons": [],
-            "priority_skills": []
+            "priority_skills": [],
+            "job_category": "",
+            "recommended_course": {}
         }
 
     usage_tracker[user_id] = usage_tracker.get(user_id, 0) + 1
 
+    # 🔥 FIX CV BUG
+    cv_text = request.cv.strip()
+
+    if len(cv_text) < 50:
+        cv_text = "EMPTY"
+    else:
+        # 🔥 trim CV (speed boost)
+        cv_text = cv_text[:3000]
+
+    job_category = detect_category(request.job_description)
+    course = COURSE_MAP.get(job_category, COURSE_MAP["general"])
+
     prompt = f"""
+Analyze job and optional CV.
 
-You are an expert career analyst.
+Rules:
+- If CV is EMPTY → score = -1
+- If CV exists → compute score, missing skills, explanation
 
-Analyze the job description and optional CV.
-
-IMPORTANT:
-
-If CV is EMPTY:
-- DO NOT assume candidate skills
-- DO NOT compute a match score → return score = -1
-- Only extract:
-  - core skills
-  - all skills
-  - job level
-
-If CV is PROVIDED:
-- Compare CV vs job
-- Compute:
-  - missing skills
-  - match score (0-100)
-  - explanation
-  - rejection reasons
-  - priority skills
-
-Tasks:
-1. Extract core skills (3-5)
-2. Extract all technical skills
-3. Determine level
-
-IF CV EXISTS ALSO:
-4. Identify missing skills
-5. Assign match score
-6. Explain score
-7. Rejection reasons
-8. Priority skills
-
-Return ONLY JSON:
+Return JSON:
 
 {{
  "core_skills": [],
@@ -116,7 +148,7 @@ Job:
 {request.job_description}
 
 CV:
-{request.cv if request.cv else "EMPTY"}
+{cv_text}
 """
 
     response = client.chat.completions.create(
@@ -142,6 +174,10 @@ CV:
             "priority_skills": []
         }
 
+    # 🔥 ADD MONETIZATION LAYER
+    parsed["job_category"] = job_category
+    parsed["recommended_course"] = course
+
     return parsed
 
 
@@ -150,9 +186,9 @@ async def upload_cv(file: UploadFile = File(...)):
     text = ""
 
     if file.filename.endswith(".pdf"):
-        reader = PyPDF2.PdfReader(file.file)
-        for page in reader.pages:
-            text += page.extract_text() or ""
+        with pdfplumber.open(file.file) as pdf:
+            for page in pdf.pages:
+                text += page.extract_text() or ""
 
     elif file.filename.endswith(".docx"):
         doc = docx.Document(file.file)
