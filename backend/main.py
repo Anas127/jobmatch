@@ -38,13 +38,30 @@ class JobRequest(BaseModel):
 async def extract_skills(request: JobRequest):
     # 1. AI Analysis
     prompt = f"""
-    Brutally honest recruiter analysis. Return JSON ONLY.
-    Job: {request.job_description[:1000]}
-    CV: {request.cv[:1000] if request.cv else "EMPTY"}
-    
-    Format:
-    {{"score": 85, "level": "Mid", "missing_skills": [], "explanation": "", "rejection_reasons": [], "priority_skills": []}}
-    """
+ROLE: You are a Lead Technical Recruiter at a FAANG company. 
+TASK: Compare the Job Description and CV. Be brutally honest.
+
+Job: {request.job_description[:1500]}
+CV: {request.cv[:1500]}
+
+JSON OUTPUT ONLY:
+{{
+  "score": 0-100,
+  "level": "Identify seniority based on CV",
+  "missing_skills": ["Specific technical gaps only (e.g. 'FastAPI dependency injection' instead of 'FastAPI')"],
+  "explanation": "Summarize the cultural and technical fit in 2 blunt sentences.",
+  "rejection_reasons": [
+    "Identify a specific project they LACK that the job requires",
+    "Identify a specific technical mismatch",
+    "Identify a bullet point on the CV that looks weak or filler"
+  ],
+  "priority_skills": [
+    "Give a 3-word concrete project name they should build to bridge the gap",
+    "Identify a specific certification or advanced library to master",
+    "Specify an exact architectural concept they need to learn"
+  ]
+}}
+"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",

@@ -187,12 +187,35 @@ function App() {
                 {!report.is_paid ? (
                   <button
                     onClick={() => {
-                      const redirect = `https://jobmatch-fjik.vercel.app/?unlocked=true`;
-                      window.location.href = `https://jobskills.lemonsqueezy.com/checkout/buy/5fe468f4-a8c6-4222-bbd4-ad1492248a92?redirect_url=${encodeURIComponent(redirect)}`;
+                      // Save current ID to memory
+                      localStorage.setItem("active_report_id", report.id);
+
+                      // Open Lemon Squeezy as a popup
+                      if (window.LemonSqueezy) {
+                        window.LemonSqueezy.Url.Open(
+                          "https://jobskills.lemonsqueezy.com/checkout/buy/5fe468f4-a8c6-4222-bbd4-ad1492248a92?embed=1",
+                        );
+
+                        // Listen for the "Order Success" event
+                        window.LemonSqueezy.Setup({
+                          eventHandler: (event) => {
+                            if (event.event === "Checkout.Success") {
+                              // Success! Manually trigger the unlock
+                              fetch(`${API_URL}/unlock/${report.id}`, {
+                                method: "POST",
+                              }).then(() => loadExistingReport(report.id));
+                            }
+                          },
+                        });
+                      } else {
+                        // Fallback if the script isn't loaded
+                        window.location.href =
+                          "https://jobskills.lemonsqueezy.com/checkout/buy/5fe468f4-a8c6-4222-bbd4-ad1492248a92";
+                      }
                     }}
                     className="w-full py-4 bg-emerald-500 hover:bg-emerald-400 text-white rounded-2xl font-bold shadow-xl shadow-emerald-500/30 text-lg"
                   >
-                    Unlock for $3
+                    Unlock Full Assessment — $3
                   </button>
                 ) : (
                   <div className="pt-8 border-t border-slate-800 space-y-8">
