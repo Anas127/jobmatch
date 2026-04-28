@@ -113,8 +113,7 @@ def extract_skills(request: JobRequest, req: Request):
 
     # 🔥 CLEAN CV
     cv_text = request.cv.strip()
-
-    if len(cv_text) < 50:
+    if not cv_text or len(cv_text) < 30:
         cv_text = "EMPTY"
     else:
         cv_text = cv_text[:1500]
@@ -139,8 +138,8 @@ IF CV = EMPTY:
 IF CV EXISTS:
 - Be strict like a real recruiter
 - ALWAYS return 4-6 missing skills
-- Missing skills must be concrete technologies (Kafka, Docker, AWS, etc.)
-- Provide 2-4 rejection reasons explaining why candidate would fail screening
+- Missing skills must be concrete technologies
+- Provide 3-5 rejection reasons explaining why candidate would fail screening
 - Return top 3 priority skills to learn first
 
 Return ONLY JSON:
@@ -166,7 +165,7 @@ CV:
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.2
+        temperature=0
     )
 
     content = response.choices[0].message.content
@@ -175,8 +174,7 @@ CV:
         match = re.search(r"\{.*\}", content, re.DOTALL)
 
         if match:
-            json_text = match.group()
-            parsed = json.loads(json_text)
+            parsed = json.loads(match.group())
         else:
             raise ValueError("No JSON found")
 
@@ -192,16 +190,18 @@ CV:
             "priority_skills": []
         }
 
-    # 🔥 LIMIT FREE VALUE (IMPORTANT)
+    # 🔥 STRONG PAYWALL (SERVER SIDE)
     if usage_tracker.get(user_id, 0) <= FREE_LIMIT:
         parsed["rejection_reasons"] = []
         parsed["priority_skills"] = []
+        parsed["explanation"] = parsed["explanation"][:120]
 
     # 🔥 ADD MONETIZATION DATA
     parsed["job_category"] = job_category
     parsed["recommended_course"] = course
 
     return parsed
+
 
 @app.post("/upload-cv")
 async def upload_cv(file: UploadFile = File(...)):

@@ -14,6 +14,7 @@ function App() {
 
   const [locked, setLocked] = useState(!isUnlocked);
 
+  // 🔥 ANALYZE (MANUAL ONLY)
   const handleExtract = async () => {
     if (!text) return;
 
@@ -47,6 +48,7 @@ function App() {
     setLoading(false);
   };
 
+  // 🔥 UPLOAD CV (NO AUTO ANALYSIS)
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
 
@@ -68,33 +70,8 @@ function App() {
     });
 
     const data = await res.json();
-    setCvText(data.text);
 
-    const analyzeRes = await fetch(`${API_URL}/extract`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        job_description: text,
-        cv: data.text,
-      }),
-    });
-
-    const resultData = await analyzeRes.json();
-
-    if (resultData.skills?.includes("LIMIT REACHED")) {
-      alert("Free limit reached. Upgrade to continue.");
-      setLoading(false);
-      return;
-    }
-
-    setResult(resultData);
-
-    if (!isUnlocked) {
-      setLocked(true);
-    }
-
+    setCvText(data.text); // ✅ only fill textarea
     setLoading(false);
   };
 
@@ -103,20 +80,8 @@ function App() {
       <div className="min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 text-white">
         
         {/* NAVBAR */}
-        <div className="flex items-center justify-between px-12 py-6 border-b border-slate-800 bg-slate-950">
+        <div className="flex items-center px-12 py-6 border-b border-slate-800 bg-slate-950">
           <span className="text-lg font-semibold">JobMatch</span>
-
-          <button
-            onClick={() =>
-              window.open(
-                "https://jobskills.lemonsqueezy.com/checkout/buy/5fe468f4-a8c6-4222-bbd4-ad1492248a92",
-                "_blank"
-              )
-            }
-            className="bg-emerald-500 px-6 py-2 rounded-lg"
-          >
-            Upgrade — $3
-          </button>
         </div>
 
         {/* MAIN */}
@@ -144,7 +109,7 @@ function App() {
               onClick={handleExtract}
               className="w-full py-3 bg-indigo-500 rounded-lg"
             >
-              {loading ? "Analyzing..." : "Analyze"}
+              {loading ? "Analyzing..." : "Analyze Job Match"}
             </button>
           </div>
 
@@ -157,16 +122,16 @@ function App() {
               <>
                 {/* SCORE */}
                 <div>
-                  <p>Match Score</p>
-                  <h1 className="text-3xl">{result.score}%</h1>
+                  <p className="text-sm text-slate-400">Match Score</p>
+                  <h1 className="text-3xl font-bold">{result.score}%</h1>
                 </div>
 
-                {/* MISSING SKILLS (FREE) */}
+                {/* MISSING SKILLS */}
                 <div>
-                  <p>Missing Skills</p>
+                  <p className="text-sm text-slate-400 mb-2">Missing Skills</p>
                   <div className="flex flex-wrap gap-2">
                     {result.missing_skills.map((s, i) => (
-                      <span key={i} className="bg-red-500/20 px-2 py-1">
+                      <span key={i} className="bg-red-500/20 px-2 py-1 text-sm rounded">
                         {s}
                       </span>
                     ))}
@@ -175,23 +140,32 @@ function App() {
 
                 {/* 🔒 EXPLANATION */}
                 <div className={locked ? "blur-sm select-none" : ""}>
-                  <p>{result.explanation}</p>
+                  <p className="text-sm text-slate-300">{result.explanation}</p>
                 </div>
 
-                {/* 🔒 ROADMAP (HIDDEN COMPLETELY) */}
+                {/* 🔒 ROADMAP (ONLY IF PAID) */}
                 {!locked && result.recommended_course?.title && (
                   <div>
-                    <p>Roadmap</p>
-                    <a href={result.recommended_course.link}>
+                    <p className="text-sm text-slate-400 mb-2">Your Roadmap</p>
+                    <a
+                      href={result.recommended_course.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-indigo-500 px-4 py-2 rounded-lg text-sm font-medium inline-block"
+                    >
                       {result.recommended_course.title}
                     </a>
                   </div>
                 )}
 
-                {/* PAYWALL */}
+                {/* 🔥 PAYWALL */}
                 {locked && (
-                  <div className="text-center">
-                    <p>You’re missing critical skills</p>
+                  <div className="text-center space-y-3 mt-6">
+
+                    <p className="text-yellow-400 text-sm">
+                      You’re not getting this job — here’s why 👇
+                    </p>
+
                     <button
                       onClick={() =>
                         window.open(
@@ -199,9 +173,21 @@ function App() {
                           "_blank"
                         )
                       }
+                      className="bg-emerald-500 hover:bg-emerald-600 px-6 py-3 rounded-lg text-white font-semibold"
                     >
-                      Unlock — $3
+                      Unlock Full Report — $3
                     </button>
+
+                    <p className="text-xs text-slate-400">
+                      ✔ Exact rejection reasons <br />
+                      ✔ Priority skills to fix your gaps <br />
+                      ✔ Step-by-step roadmap
+                    </p>
+
+                    <p className="text-xs text-slate-500">
+                      Most candidates never fix these gaps
+                    </p>
+
                   </div>
                 )}
               </>
