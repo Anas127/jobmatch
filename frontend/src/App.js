@@ -8,12 +8,11 @@ const API_URL = "https://jobmatch-7zo9.onrender.com";
 const isUnlockedFromURL =
   new URLSearchParams(window.location.search).get("unlocked") === "true";
 
-const [errorMessage, setErrorMessage] = useState("");
-
 function App() {
   const [text, setText] = useState("");
   const [cvText, setCvText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
 
   // ✅ Initialize result from localStorage immediately (not in useEffect)
   // Prevents blank screen after payment redirect
