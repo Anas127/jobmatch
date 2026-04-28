@@ -21,7 +21,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 🔥 simple IP-based tracking (better than "default")
 usage_tracker = {}
 FREE_LIMIT = 3
 
@@ -44,7 +43,7 @@ class JobResponse(BaseModel):
     recommended_course: dict
 
 
-# 🔥 simple category detection (fast, no GPT needed)
+# 🔥 CATEGORY DETECTION
 def detect_category(text):
     text = text.lower()
 
@@ -52,7 +51,7 @@ def detect_category(text):
         return "frontend"
     if "spring" in text or "backend" in text:
         return "backend"
-    if "data" in text or "etl" in text:
+    if "data" in text or "etl" in text or "kafka" in text:
         return "data engineering"
     if "machine learning" in text or "ml" in text:
         return "machine learning"
@@ -64,27 +63,27 @@ def detect_category(text):
 
 COURSE_MAP = {
     "frontend": {
-        "title": "Complete Frontend Developer Roadmap",
+        "title": "Become a Frontend Developer",
         "link": "https://your-affiliate-link"
     },
     "backend": {
-        "title": "Backend Developer Bootcamp",
+        "title": "Become a Backend Developer",
         "link": "https://your-affiliate-link"
     },
     "data engineering": {
-        "title": "Data Engineering Bootcamp",
+        "title": "Become a Data Engineer",
         "link": "https://your-affiliate-link"
     },
     "machine learning": {
-        "title": "Machine Learning Roadmap",
+        "title": "Become a Machine Learning Engineer",
         "link": "https://your-affiliate-link"
     },
     "devops": {
-        "title": "DevOps Roadmap Course",
+        "title": "Become a DevOps Engineer",
         "link": "https://your-affiliate-link"
     },
     "general": {
-        "title": "Complete Software Engineering Roadmap",
+        "title": "Become a Software Engineer",
         "link": "https://your-affiliate-link"
     }
 }
@@ -93,7 +92,6 @@ COURSE_MAP = {
 @app.post("/extract", response_model=JobResponse)
 def extract_skills(request: JobRequest, req: Request):
 
-    # 🔥 better tracking (per user IP)
     user_id = req.client.host
 
     if usage_tracker.get(user_id, 0) >= FREE_LIMIT:
@@ -112,26 +110,39 @@ def extract_skills(request: JobRequest, req: Request):
 
     usage_tracker[user_id] = usage_tracker.get(user_id, 0) + 1
 
-    # 🔥 FIX CV BUG
+    # 🔥 CLEAN CV
     cv_text = request.cv.strip()
 
     if len(cv_text) < 50:
         cv_text = "EMPTY"
     else:
-        # 🔥 trim CV (speed boost)
         cv_text = cv_text[:3000]
 
-    job_category = detect_category(request.job_description)
+    # 🔥 LIMIT JOB TEXT (SPEED)
+    job_text = request.job_description[:2000]
+
+    job_category = detect_category(job_text)
     course = COURSE_MAP.get(job_category, COURSE_MAP["general"])
 
     prompt = f"""
-Analyze job and optional CV.
+You are a strict technical recruiter.
 
-Rules:
-- If CV is EMPTY → score = -1
-- If CV exists → compute score, missing skills, explanation
+Analyze job and CV.
 
-Return JSON:
+RULES:
+
+IF CV = EMPTY:
+- score = -1
+- DO NOT invent candidate skills
+
+IF CV EXISTS:
+- Be strict like a real recruiter
+- ALWAYS return at least 3 missing skills
+- Missing skills must be concrete technologies (Kafka, Docker, AWS, etc.)
+- Provide 2-4 rejection reasons explaining why candidate would fail screening
+- Return top 3 priority skills to learn first
+
+Return ONLY JSON:
 
 {{
  "core_skills": [],
@@ -145,7 +156,7 @@ Return JSON:
 }}
 
 Job:
-{request.job_description}
+{job_text}
 
 CV:
 {cv_text}
@@ -160,8 +171,14 @@ CV:
     content = response.choices[0].message.content
 
     try:
-        json_text = re.search(r"\{.*\}", content, re.DOTALL).group()
-        parsed = json.loads(json_text)
+        match = re.search(r"\{.*\}", content, re.DOTALL)
+
+        if match:
+            json_text = match.group()
+            parsed = json.loads(json_text)
+        else:
+            raise ValueError("No JSON found")
+
     except:
         parsed = {
             "core_skills": [],
@@ -174,7 +191,7 @@ CV:
             "priority_skills": []
         }
 
-    # 🔥 ADD MONETIZATION LAYER
+    # 🔥 ADD MONETIZATION DATA
     parsed["job_category"] = job_category
     parsed["recommended_course"] = course
 
