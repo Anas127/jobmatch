@@ -9,7 +9,11 @@ function App() {
   const [cvText, setCvText] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [locked, setLocked] = useState(false); // 🔥 PAYWALL
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const isUnlocked = urlParams.get("unlocked") === "true";
+
+  const [locked, setLocked] = useState(!isUnlocked);
 
   const handleExtract = async () => {
     if (!text) return;
@@ -36,7 +40,11 @@ function App() {
     }
 
     setResult(data);
-    setLocked(true); // 🔥 LOCK AFTER RESULT
+
+    if (!isUnlocked) {
+      setLocked(true);
+    }
+
     setLoading(false);
   };
 
@@ -83,7 +91,11 @@ function App() {
     }
 
     setResult(resultData);
-    setLocked(true);
+
+    if (!isUnlocked) {
+      setLocked(true);
+    }
+
     setLoading(false);
   };
 
@@ -93,180 +105,106 @@ function App() {
         
         {/* NAVBAR */}
         <div className="flex items-center justify-between px-12 py-6 border-b border-slate-800 bg-slate-950">
-          <div className="flex items-center gap-4">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
-              <span className="text-sm font-bold text-white">J</span>
-            </div>
-
-            <div className="flex flex-col leading-tight">
-              <span className="text-lg font-semibold tracking-tight">
-                JobMatch
-              </span>
-              <span className="text-xs text-gray-500">AI job analysis</span>
-            </div>
-          </div>
+          <span className="text-lg font-semibold">JobMatch</span>
 
           <button
-            onClick={() => window.open("YOUR_STRIPE_LINK", "_blank")}
-            className="bg-emerald-500 hover:bg-emerald-600 px-6 py-2.5 rounded-lg text-sm font-semibold"
+            onClick={() =>
+              window.open(
+                "https://jobskills.lemonsqueezy.com/checkout/buy/5fe468f4-a8c6-4222-bbd4-ad1492248a92",
+                "_blank"
+              )
+            }
+            className="bg-emerald-500 px-6 py-2 rounded-lg"
           >
             Upgrade — $3
           </button>
         </div>
 
-        {/* HERO */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mt-12 mb-10"
-        >
-          <h1 className="text-4xl font-bold mb-2">
-            Stop guessing what skills you need
-          </h1>
-          <p className="text-gray-400">
-            Paste a job → see skills, gaps, and your roadmap
-          </p>
-        </motion.div>
-
         {/* MAIN */}
-        <div className="max-w-5xl mx-auto px-6 grid md:grid-cols-2 gap-8">
+        <div className="max-w-5xl mx-auto px-6 grid md:grid-cols-2 gap-8 mt-10">
 
           {/* INPUT */}
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-4">
+          <div className="bg-slate-900 p-6 rounded-xl space-y-4">
             <textarea
-              className="w-full h-36 p-4 rounded-lg bg-slate-950 border border-slate-700"
+              className="w-full h-36 p-4 bg-slate-950"
               placeholder="Paste job description..."
               value={text}
               onChange={(e) => setText(e.target.value)}
             />
 
             <textarea
-              className="w-full h-24 p-4 rounded-lg bg-slate-950 border border-slate-700"
-              placeholder="Paste your CV (optional)"
+              className="w-full h-24 p-4 bg-slate-950"
+              placeholder="Paste CV (optional)"
               value={cvText}
               onChange={(e) => setCvText(e.target.value)}
             />
 
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx,.txt"
-              onChange={handleFileUpload}
-              className="text-sm text-gray-400"
-            />
+            <input type="file" onChange={handleFileUpload} />
 
             <button
-              disabled={loading}
               onClick={handleExtract}
-              className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg font-semibold disabled:opacity-50"
+              className="w-full py-3 bg-indigo-500 rounded-lg"
             >
-              {loading ? "Analyzing..." : "Analyze Job Match"}
+              {loading ? "Analyzing..." : "Analyze"}
             </button>
           </div>
 
           {/* RESULTS */}
-          <div className="bg-slate-900 p-6 rounded-xl border border-slate-800 space-y-6">
+          <div className="bg-slate-900 p-6 rounded-xl space-y-6">
 
-            {!result && (
-              <p className="text-gray-500 text-center">
-                Paste a job description to get started
-              </p>
-            )}
+            {!result && <p>Paste a job description to start</p>}
 
             {result && (
               <>
                 {/* SCORE */}
-                <div className="bg-slate-950 p-5 rounded-lg">
-                  <p className="text-sm text-gray-400">Match Score</p>
-
-                  {result.score === -1 ? (
-                    <p className="text-gray-500 mt-2">
-                      Upload a CV to unlock your match score
-                    </p>
-                  ) : (
-                    <p className="text-4xl font-bold text-indigo-400">
-                      {result.score}%
-                    </p>
-                  )}
-
-                  <p className="text-xs text-yellow-400 mt-2">
-                    Most candidates get rejected for these gaps
-                  </p>
+                <div>
+                  <p>Match Score</p>
+                  <h1 className="text-3xl">{result.score}%</h1>
                 </div>
 
-                {/* 🔥 MISSING SKILLS */}
-                {result.missing_skills?.length > 0 && (
-                  <div className="bg-slate-950 p-5 rounded-lg border border-slate-800">
-                    <p className="text-red-400 font-semibold mb-2">
-                      ⚠️ Missing Skills
-                    </p>
-
-                    <div className="flex flex-wrap gap-2">
-                      {result.missing_skills.map((skill, i) => (
-                        <span
-                          key={i}
-                          className="bg-red-500/20 text-red-300 px-3 py-1 rounded text-sm"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
+                {/* MISSING SKILLS (FREE) */}
+                <div>
+                  <p>Missing Skills</p>
+                  <div className="flex flex-wrap gap-2">
+                    {result.missing_skills.map((s, i) => (
+                      <span key={i} className="bg-red-500/20 px-2 py-1">
+                        {s}
+                      </span>
+                    ))}
                   </div>
-                )}
-
-                {/* 🔥 LOCKED EXPLANATION */}
-                <div className="bg-slate-950 p-5 rounded-lg">
-                  <p className="text-sm text-gray-400">Analysis</p>
-
-                  <p className={locked ? "blur-sm select-none" : ""}>
-                    {result.explanation}
-                  </p>
                 </div>
 
-                {/* PAYWALL */}
-                {locked && (
-                  <div className="bg-slate-950 p-5 rounded-lg text-center border border-slate-800">
-                    <p className="font-semibold mb-2">
-                      You’re missing critical skills for this role
-                    </p>
+                {/* 🔒 EXPLANATION */}
+                <div className={locked ? "blur-sm select-none" : ""}>
+                  <p>{result.explanation}</p>
+                </div>
 
-                    <p className="text-sm text-gray-400 mb-3">
-                      Unlock full breakdown + exact roadmap — $3
-                    </p>
-
-                    <button
-                      onClick={() => window.open("YOUR_STRIPE_LINK", "_blank")}
-                      className="bg-green-500 px-5 py-2 rounded-lg"
-                    >
-                      Get Full Report
-                    </button>
-                  </div>
-                )}
-
-                {/* ROADMAP */}
-                {result.recommended_course?.title && (
-                  <div className="bg-slate-950 p-5 rounded-lg border border-slate-800">
-                    <p className="font-semibold mb-2">🚀 Your Roadmap</p>
-
-                    <p className="text-sm text-gray-400 mb-3">
-                      Become a{" "}
-                      {result.job_category === "data engineering"
-                        ? "Data Engineer"
-                        : result.job_category}
-                    </p>
-
-                    <a
-                      href={result.recommended_course.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="bg-indigo-500 px-4 py-2 rounded-lg text-sm font-medium inline-block"
-                    >
+                {/* 🔒 ROADMAP (HIDDEN COMPLETELY) */}
+                {!locked && result.recommended_course?.title && (
+                  <div>
+                    <p>Roadmap</p>
+                    <a href={result.recommended_course.link}>
                       {result.recommended_course.title}
                     </a>
                   </div>
                 )}
 
-                <Section title="Core Skills" items={result.core_skills} />
-                <Section title="All Skills" items={result.skills} />
+                {/* PAYWALL */}
+                {locked && (
+                  <div className="text-center">
+                    <p>You’re missing critical skills</p>
+                    <button
+                      onClick={() =>
+                        window.open(
+                          "https://jobskills.lemonsqueezy.com/checkout/buy/5fe468f4-a8c6-4222-bbd4-ad1492248a92",
+                          "_blank"
+                        )
+                      }
+                    >
+                      Unlock — $3
+                    </button>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -275,21 +213,6 @@ function App() {
 
       <Analytics />
     </>
-  );
-}
-
-function Section({ title, items = [] }) {
-  return (
-    <div>
-      <h3 className="mb-2">{title}</h3>
-      <div className="flex flex-wrap gap-2">
-        {items.map((item, i) => (
-          <span key={i} className="bg-slate-700 px-3 py-1 rounded text-sm">
-            {item}
-          </span>
-        ))}
-      </div>
-    </div>
   );
 }
 

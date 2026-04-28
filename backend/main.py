@@ -64,27 +64,27 @@ def detect_category(text):
 COURSE_MAP = {
     "frontend": {
         "title": "Become a Frontend Developer",
-        "link": "https://your-affiliate-link"
+        "link": "https://www.udemy.com/share/101Wvc/"
     },
     "backend": {
         "title": "Become a Backend Developer",
-        "link": "https://your-affiliate-link"
+        "link": "https://www.udemy.com/share/1013gG/"
     },
     "data engineering": {
         "title": "Become a Data Engineer",
-        "link": "https://your-affiliate-link"
+        "link": "https://www.udemy.com/share/104lbm/"
     },
     "machine learning": {
         "title": "Become a Machine Learning Engineer",
-        "link": "https://your-affiliate-link"
+        "link": "https://www.udemy.com/share/10bYlh/"
     },
     "devops": {
         "title": "Become a DevOps Engineer",
-        "link": "https://your-affiliate-link"
+        "link": "https://www.udemy.com/share/107YGQ/"
     },
     "general": {
         "title": "Become a Software Engineer",
-        "link": "https://your-affiliate-link"
+        "link": "https://www.udemy.com/share/105wZ6/"
     }
 }
 
@@ -92,8 +92,9 @@ COURSE_MAP = {
 @app.post("/extract", response_model=JobResponse)
 def extract_skills(request: JobRequest, req: Request):
 
-    user_id = req.client.host
+    user_id = req.headers.get("x-forwarded-for", req.client.host)
 
+    # 🔥 LIMIT CHECK
     if usage_tracker.get(user_id, 0) >= FREE_LIMIT:
         return {
             "core_skills": [],
@@ -116,10 +117,10 @@ def extract_skills(request: JobRequest, req: Request):
     if len(cv_text) < 50:
         cv_text = "EMPTY"
     else:
-        cv_text = cv_text[:3000]
+        cv_text = cv_text[:1500]
 
-    # 🔥 LIMIT JOB TEXT (SPEED)
-    job_text = request.job_description[:2000]
+    # 🔥 LIMIT JOB TEXT
+    job_text = request.job_description[:1200]
 
     job_category = detect_category(job_text)
     course = COURSE_MAP.get(job_category, COURSE_MAP["general"])
@@ -137,7 +138,7 @@ IF CV = EMPTY:
 
 IF CV EXISTS:
 - Be strict like a real recruiter
-- ALWAYS return at least 3 missing skills
+- ALWAYS return 4-6 missing skills
 - Missing skills must be concrete technologies (Kafka, Docker, AWS, etc.)
 - Provide 2-4 rejection reasons explaining why candidate would fail screening
 - Return top 3 priority skills to learn first
@@ -191,12 +192,16 @@ CV:
             "priority_skills": []
         }
 
+    # 🔥 LIMIT FREE VALUE (IMPORTANT)
+    if usage_tracker.get(user_id, 0) <= FREE_LIMIT:
+        parsed["rejection_reasons"] = []
+        parsed["priority_skills"] = []
+
     # 🔥 ADD MONETIZATION DATA
     parsed["job_category"] = job_category
     parsed["recommended_course"] = course
 
     return parsed
-
 
 @app.post("/upload-cv")
 async def upload_cv(file: UploadFile = File(...)):
