@@ -9,11 +9,12 @@ function App() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [statusMsg, setStatusMsg] = useState("");
   const [scanCount, setScanCount] = useState(
     parseInt(localStorage.getItem("scan_count") || "0"),
   );
 
-  // SAVE progress as user types
+  // 1. TOP LEVEL HOOKS (Persistence)
   useEffect(() => {
     localStorage.setItem("temp_job_text", text);
   }, [text]);
@@ -22,18 +23,14 @@ function App() {
     localStorage.setItem("temp_cv_text", cvText);
   }, [cvText]);
 
-  // LOAD progress when the app starts
   useEffect(() => {
     const savedJob = localStorage.getItem("temp_job_text");
     const savedCV = localStorage.getItem("temp_cv_text");
-
-    // Only load if the textareas are currently empty
     if (savedJob && !text) setText(savedJob);
     if (savedCV && !cvText) setCvText(savedCV);
   }, []);
 
-  const [statusMsg, setStatusMsg] = useState("");
-
+  // 2. DATA LOADING LOGIC
   const loadExistingReport = useCallback(async (id) => {
     if (!id) return;
     try {
@@ -71,6 +68,45 @@ function App() {
     }
   }, [loadExistingReport]);
 
+  // 3. PAYPAL RENDER HOOK (Moved out of JSX to Top Level)
+  useEffect(() => {
+    // Check if the report exists, isn't paid, and the PayPal SDK is ready
+    if (window.paypal && report && !report.is_paid) {
+      const container = document.getElementById("paypal-button-container");
+      if (container) {
+        container.innerHTML = ""; // Clear duplicates
+        window.paypal
+          .Buttons({
+            style: {
+              layout: "vertical",
+              color: "gold",
+              shape: "rect",
+              label: "pay",
+            },
+            createOrder: (data, actions) => {
+              return actions.order.create({
+                purchase_units: [
+                  {
+                    amount: { value: "3.00" },
+                    description: `Pro Audit for Report: ${report.id}`,
+                  },
+                ],
+              });
+            },
+            onApprove: async (data, actions) => {
+              await actions.order.capture();
+              await fetch(`${API_URL}/unlock/${report.id}`, { method: "POST" });
+              await loadExistingReport(report.id);
+            },
+            onError: (err) => {
+              setErrorMessage("Payment process failed. Please try again.");
+            },
+          })
+          .render("#paypal-button-container");
+      }
+    }
+  }, [report, loadExistingReport]); // Re-run when report data updates
+
   const handleAnalyze = async () => {
     if (scanCount >= 2 && (!report || !report.is_paid)) {
       setErrorMessage("Free limit reached. Unlock PRO to continue updating.");
@@ -79,7 +115,7 @@ function App() {
 
     setLoading(true);
     setErrorMessage("");
-    setStatusMsg("Initializing Architect Brain..."); // Set initial message
+    setStatusMsg("Initializing Architect Brain...");
 
     const statuses = [
       "Scrutinizing job requirements...",
@@ -108,7 +144,6 @@ function App() {
       const newCount = scanCount + 1;
       setScanCount(newCount);
       localStorage.setItem("scan_count", newCount.toString());
-
       localStorage.setItem("active_report_id", data.id);
       window.history.pushState({}, "", `?report_id=${data.id}`);
 
@@ -145,7 +180,6 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-950 text-white p-6 md:p-12 font-sans">
       <div className="max-w-6xl mx-auto grid md:grid-cols-2 gap-12">
-        {/* INPUTS */}
         <div className="space-y-6">
           <div className="flex items-center gap-2 mb-8">
             <span className="text-4xl font-black tracking-tighter">
@@ -201,7 +235,6 @@ function App() {
           </button>
         </div>
 
-        {/* RESULTS PANEL */}
         <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl min-h-[600px] relative">
           {!report ? (
             <div className="flex flex-col items-center justify-center h-full text-slate-700 py-32 text-center space-y-4">
@@ -214,7 +247,6 @@ function App() {
             </div>
           ) : (
             <div className="space-y-10 animate-in fade-in duration-700">
-              {/* MATCH SCORE GAUGE */}
               <div className="flex justify-between items-end border-b border-slate-800 pb-8">
                 <div className="relative inline-block">
                   <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-2">
@@ -265,84 +297,31 @@ function App() {
 
                 {!report.is_paid ? (
                   <div className="space-y-6">
-                    {/* CURIOSITY GAP PREVIEWS (Keep these as they are) */}
                     <div className="space-y-4 opacity-50 pointer-events-none grayscale">
-                      <div className="h-20 bg-slate-800 rounded-2xl border border-slate-700 border-dashed flex items-center justify-center font-bold text-xs text-slate-500 uppercase tracking-widest">
+                      <div className="h-20 bg-slate-800 rounded-2xl border border-slate-700 border-dashed flex items-center justify-center font-bold text-xs text-slate-500 uppercase tracking-widest text-center">
                         CV Rewrite & Keywords Locked 🔒
                       </div>
-                      <div className="h-20 bg-slate-800 rounded-2xl border border-slate-700 border-dashed flex items-center justify-center font-bold text-xs text-slate-500 uppercase tracking-widest">
+                      <div className="h-20 bg-slate-800 rounded-2xl border border-slate-700 border-dashed flex items-center justify-center font-bold text-xs text-slate-500 uppercase tracking-widest text-center">
                         Interview Strategy Locked 🔒
                       </div>
                     </div>
 
-                    {/* THE NEW PAYPAL CONTAINER */}
                     <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
                       <p className="text-[10px] text-center text-slate-500 uppercase font-bold mb-4 tracking-widest">
                         Secure Instant Unlock
                       </p>
+                      {/* Container for PayPal buttons */}
                       <div id="paypal-button-container"></div>
                     </div>
-
-                    {/* THIS EFFECT INJECTS THE BUTTON ONCE THE COMPONENT LOADS */}
-                    {useEffect(() => {
-                      if (window.paypal && report && !report.is_paid) {
-                        // Clear any previous buttons to prevent duplicates
-                        const container = document.getElementById(
-                          "paypal-button-container",
-                        );
-                        if (container) container.innerHTML = "";
-
-                        window.paypal
-                          .Buttons({
-                            style: {
-                              layout: "vertical",
-                              color: "gold",
-                              shape: "rect",
-                              label: "pay",
-                            },
-                            createOrder: (data, actions) => {
-                              return actions.order.create({
-                                purchase_units: [
-                                  {
-                                    amount: { value: "3.00" },
-                                    description: `Pro Audit for Report: ${report.id}`,
-                                  },
-                                ],
-                              });
-                            },
-                            onApprove: async (data, actions) => {
-                              await actions.order.capture();
-                              // Call your backend to flip 'is_paid' to TRUE
-                              await fetch(`${API_URL}/unlock/${report.id}`, {
-                                method: "POST",
-                              });
-                              // Refresh the UI
-                              await loadExistingReport(report.id);
-                            },
-                            onError: (err) => {
-                              setErrorMessage(
-                                "Payment process failed. Please try again.",
-                              );
-                            },
-                          })
-                          .render("#paypal-button-container");
-                      }
-                    }, [report, loadExistingReport])}
                   </div>
                 ) : (
                   <div className="pt-8 border-t border-slate-800 space-y-10 animate-in slide-in-from-top-4 duration-500">
-                    {/* CV ENHANCEMENT */}
                     <div className="space-y-4">
                       <h3 className="text-emerald-400 font-bold text-xs uppercase tracking-widest italic">
                         CV Enhancement
                       </h3>
-                      <div className="bg-emerald-500/5 border border-emerald-500/20 p-5 rounded-2xl">
-                        <p className="text-[10px] text-slate-500 uppercase font-black mb-2 tracking-tighter">
-                          High-Impact Rewrite:
-                        </p>
-                        <p className="text-sm text-slate-200 italic leading-relaxed">
-                          "{report.result?.cv_enhancement?.rewrite_bullet}"
-                        </p>
+                      <div className="bg-emerald-500/5 border border-emerald-500/20 p-5 rounded-2xl text-sm italic leading-relaxed">
+                        "{report.result?.cv_enhancement?.rewrite_bullet}"
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {report.result?.cv_enhancement?.hidden_keywords?.map(
@@ -358,7 +337,6 @@ function App() {
                       </div>
                     </div>
 
-                    {/* INTERVIEW PREP */}
                     <div className="space-y-4">
                       <h3 className="text-indigo-400 font-bold text-xs uppercase tracking-widest italic">
                         Interview Cheat Sheet
@@ -375,13 +353,12 @@ function App() {
                         <p className="text-[10px] text-indigo-400 font-black uppercase mb-1 tracking-tighter">
                           Winning Strategy:
                         </p>
-                        <p className="text-sm text-slate-300 italic leading-relaxed italic">
+                        <p className="text-sm text-slate-300 italic leading-relaxed">
                           "{report.result?.interview_prep?.winning_answer}"
                         </p>
                       </div>
                     </div>
 
-                    {/* REJECTION RISKS */}
                     <div className="space-y-4">
                       <h3 className="text-red-400 font-bold text-xs uppercase tracking-widest italic">
                         Rejection Risks
