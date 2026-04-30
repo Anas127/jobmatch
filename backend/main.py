@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Request
+from fastapi import FastAPI, UploadFile, File, Request, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +11,16 @@ from dotenv import load_dotenv
 import pdfplumber
 import docx
 
+from fastapi import FastAPI, UploadFile, File, Request, HTTPException
+import time
+
+# Temporary memory to store IP timestamps
+request_history = {}
+
+# LIMIT: 5 scans per hour per IP
+RATE_LIMIT_COUNT = 5
+RATE_LIMIT_WINDOW = 3600  # 1 hour in seconds
+
 load_dotenv()
 
 # Initialize OpenAI & Supabase
@@ -19,6 +29,11 @@ supabase: Client = create_client(
     os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
 app = FastAPI()
+
+
+@app.get("/")
+async def root():
+    return {"status": "alive"}
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,31 +50,51 @@ class JobRequest(BaseModel):
 
 
 @app.post("/extract")
-async def extract_skills(request: JobRequest):
-    # 1. AI Analysis
-    prompt = f"""
-ROLE: You are a Lead Technical Recruiter at a FAANG company. 
-TASK: Compare the Job Description and CV. Be brutally honest.
+async def extract_skills(request: JobRequest, raw_request: Request):
 
-Job: {request.job_description[:1500]}
-CV: {request.cv[:1500]}
+    user_ip = raw_request.client.host
+    now = time.time()
+
+    # Clean up old requests from history
+    if user_ip not in request_history:
+        request_history[user_ip] = []
+
+    # Filter out requests older than 1 hour
+    request_history[user_ip] = [
+        t for t in request_history[user_ip] if now - t < RATE_LIMIT_WINDOW]
+
+    if len(request_history[user_ip]) >= RATE_LIMIT_COUNT:
+        raise HTTPException(
+            status_code=429, detail="Rate limit exceeded. Try again in an hour.")
+
+    request_history[user_ip].append(now)
+    # 1. AI Analysis with "I Robbed You" Value Strategy
+    prompt = f"""
+ROLE: Lead Technical Architect at a high-growth startup.
+TASK: Audit this candidate for the specific role. Be technical and ruthless.
+
+Job Description: {request.job_description[:1500]}
+CV Content: {request.cv[:1500]}
 
 JSON OUTPUT ONLY:
 {{
   "score": 0-100,
-  "level": "Identify seniority based on CV",
-  "missing_skills": ["Specific technical gaps only (e.g. 'FastAPI dependency injection' instead of 'FastAPI')"],
-  "explanation": "Summarize the cultural and technical fit in 2 blunt sentences.",
-  "rejection_reasons": [
-    "Identify a specific project they LACK that the job requires",
-    "Identify a specific technical mismatch",
-    "Identify a bullet point on the CV that looks weak or filler"
+  "level": "Identify seniority (Junior/Mid/Senior/Staff)",
+  "missing_skills": ["List 3-5 high-level architectural or library gaps"],
+  "explanation": "Brutally honest 2-sentence summary of why they might fail the interview.",
+  "cv_enhancement": {{
+    "rewrite_bullet": "Rewrite their most relevant CV bullet point to be high-impact and metric-driven",
+    "hidden_keywords": ["3 specific niche keywords the ATS is looking for"]
+  }},
+  "interview_prep": {{
+    "killer_question": "The hardest technical question this specific company will ask based on the JD",
+    "winning_answer": "A perfect, high-seniority response to that question"
+  }},
+  "priority_roadmap": [
+    "A 48-hour 'Proof of Concept' project name to build to prove mastery",
+    "The specific documentation page or advanced concept to read TONIGHT"
   ],
-  "priority_skills": [
-    "Give a 3-word concrete project name they should build to bridge the gap",
-    "Identify a specific certification or advanced library to master",
-    "Specify an exact architectural concept they need to learn"
-  ]
+  "rejection_reasons": ["Technical mismatch point 1", "CV weakness point 2"]
 }}
 """
 
@@ -88,7 +123,6 @@ JSON OUTPUT ONLY:
 
 @app.post("/unlock/{report_id}")
 async def unlock_report(report_id: str):
-    # This is called when user returns from payment
     supabase.table("reports").update(
         {"is_paid": True}).eq("id", report_id).execute()
     return {"status": "unlocked"}
