@@ -93,7 +93,6 @@ function App() {
               });
             },
             onApprove: async (data, actions) => {
-              await actions.order.capture();
               await fetch(`${API_URL}/unlock/${report.id}`, { method: "POST" });
               await loadExistingReport(report.id);
             },
