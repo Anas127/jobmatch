@@ -299,6 +299,9 @@ function App() {
                       <p className="text-[10px] text-center text-slate-500 uppercase font-bold mb-4 tracking-widest">
                         Secure Instant Unlock
                       </p>
+                      <p className="text-emerald-400 font-black text-xl">
+                        $3.00
+                      </p>
                       <div id="paypal-button-container"></div>
                     </div>
                   </div>
