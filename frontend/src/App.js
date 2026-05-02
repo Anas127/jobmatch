@@ -68,13 +68,12 @@ function App() {
     }
   }, [loadExistingReport]);
 
-  // 3. PAYPAL RENDER HOOK (Moved out of JSX to Top Level)
+  // 3. PAYPAL RENDER HOOK
   useEffect(() => {
-    // Check if the report exists, isn't paid, and the PayPal SDK is ready
     if (window.paypal && report && !report.is_paid) {
       const container = document.getElementById("paypal-button-container");
       if (container) {
-        container.innerHTML = ""; // Clear duplicates
+        container.innerHTML = "";
         window.paypal
           .Buttons({
             style: {
@@ -105,7 +104,7 @@ function App() {
           .render("#paypal-button-container");
       }
     }
-  }, [report, loadExistingReport]); // Re-run when report data updates
+  }, [report, loadExistingReport]);
 
   const handleAnalyze = async () => {
     if (scanCount >= 2 && (!report || !report.is_paid)) {
@@ -210,13 +209,11 @@ function App() {
               />
             </div>
           </div>
-
           {errorMessage && (
             <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-xl text-xs font-medium animate-pulse">
               {errorMessage}
             </div>
           )}
-
           <button
             onClick={handleAnalyze}
             disabled={loading}
@@ -225,12 +222,9 @@ function App() {
             {loading ? (
               <div className="flex flex-col items-center">
                 <span className="animate-pulse">{statusMsg}</span>
-                <span className="text-[10px] font-light mt-1 opacity-50 text-white">
-                  This takes ~15s of heavy AI processing
-                </span>
               </div>
             ) : (
-              "Generate Technical Audit"
+              "Run Brutal Technical Audit"
             )}
           </button>
         </div>
@@ -267,6 +261,16 @@ function App() {
                 )}
               </div>
 
+              {/* ARCHITECT'S VERDICT (NEW FREE VALUE) */}
+              <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+                <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-widest mb-1">
+                  Architect's Verdict (Free)
+                </p>
+                <p className="text-sm text-slate-300 italic">
+                  "{report.result?.free_critique}"
+                </p>
+              </div>
+
               <div className="space-y-8">
                 <div>
                   <h3 className="text-slate-200 font-bold mb-4 text-xs uppercase tracking-widest">
@@ -276,7 +280,7 @@ function App() {
                     {report.result?.missing_skills?.map((s, i) => (
                       <span
                         key={i}
-                        className="bg-slate-950 text-slate-300 border border-slate-800 px-4 py-1.5 rounded-xl text-xs font-medium uppercase tracking-tight"
+                        className="bg-slate-950 text-slate-300 border border-slate-800 px-4 py-1.5 rounded-xl text-xs font-medium uppercase"
                       >
                         {s}
                       </span>
@@ -284,43 +288,27 @@ function App() {
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="text-slate-200 font-bold mb-3 text-xs uppercase tracking-widest">
-                    Recruiter Note
-                  </h3>
-                  <p className="text-slate-400 text-sm leading-relaxed italic">
-                    {!report.is_paid
-                      ? report.result?.explanation?.substring(0, 80) + "..."
-                      : report.result?.explanation}
-                  </p>
-                </div>
-
                 {!report.is_paid ? (
                   <div className="space-y-6">
-                    <div className="space-y-4 opacity-50 pointer-events-none grayscale">
+                    <div className="space-y-4 opacity-40 pointer-events-none grayscale">
                       <div className="h-20 bg-slate-800 rounded-2xl border border-slate-700 border-dashed flex items-center justify-center font-bold text-xs text-slate-500 uppercase tracking-widest text-center">
-                        CV Rewrite & Keywords Locked 🔒
-                      </div>
-                      <div className="h-20 bg-slate-800 rounded-2xl border border-slate-700 border-dashed flex items-center justify-center font-bold text-xs text-slate-500 uppercase tracking-widest text-center">
-                        Interview Strategy Locked 🔒
+                        CV Rewrite & Interview Strategy Locked 🔒
                       </div>
                     </div>
-
                     <div className="p-4 bg-slate-800/50 rounded-2xl border border-slate-700">
                       <p className="text-[10px] text-center text-slate-500 uppercase font-bold mb-4 tracking-widest">
                         Secure Instant Unlock
                       </p>
-                      {/* Container for PayPal buttons */}
                       <div id="paypal-button-container"></div>
                     </div>
                   </div>
                 ) : (
                   <div className="pt-8 border-t border-slate-800 space-y-10 animate-in slide-in-from-top-4 duration-500">
-                    <div className="space-y-4">
-                      <h3 className="text-emerald-400 font-bold text-xs uppercase tracking-widest italic">
+                    <div>
+                      <h3 className="text-emerald-400 font-bold text-xs uppercase tracking-widest italic mb-4">
                         CV Enhancement
                       </h3>
-                      <div className="bg-emerald-500/5 border border-emerald-500/20 p-5 rounded-2xl text-sm italic leading-relaxed">
+                      <div className="bg-emerald-500/5 border border-emerald-500/20 p-5 rounded-2xl text-sm italic leading-relaxed mb-4">
                         "{report.result?.cv_enhancement?.rewrite_bullet}"
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -337,40 +325,46 @@ function App() {
                       </div>
                     </div>
 
-                    <div className="space-y-4">
-                      <h3 className="text-indigo-400 font-bold text-xs uppercase tracking-widest italic">
+                    <div>
+                      <h3 className="text-indigo-400 font-bold text-xs uppercase tracking-widest italic mb-4">
                         Interview Cheat Sheet
                       </h3>
-                      <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800">
+                      <div className="bg-slate-950 p-5 rounded-2xl border border-slate-800 mb-4">
                         <p className="text-[10px] text-indigo-400 font-black uppercase mb-1 tracking-tighter">
                           The "Killer" Question:
                         </p>
-                        <p className="text-sm text-slate-200 font-medium">
+                        <p className="text-sm text-slate-200 font-medium mb-4">
                           "{report.result?.interview_prep?.killer_question}"
                         </p>
-                      </div>
-                      <div className="bg-indigo-500/5 p-5 rounded-2xl border border-indigo-500/20">
                         <p className="text-[10px] text-indigo-400 font-black uppercase mb-1 tracking-tighter">
                           Winning Strategy:
                         </p>
-                        <p className="text-sm text-slate-300 italic leading-relaxed">
+                        <p className="text-sm text-slate-300 italic mb-4">
                           "{report.result?.interview_prep?.winning_answer}"
+                        </p>
+                        <p className="text-[10px] text-red-400 font-black uppercase mb-1 tracking-tighter">
+                          The Trap (Never say this):
+                        </p>
+                        <p className="text-sm text-red-300 italic">
+                          "{report.result?.interview_prep?.trap_to_avoid}"
                         </p>
                       </div>
                     </div>
 
-                    <div className="space-y-4">
-                      <h3 className="text-red-400 font-bold text-xs uppercase tracking-widest italic">
-                        Rejection Risks
+                    <div>
+                      <h3 className="text-slate-200 font-bold mb-4 text-xs uppercase tracking-widest">
+                        Priority Roadmap
                       </h3>
-                      <ul className="text-sm text-slate-300 space-y-3">
-                        {report.result?.rejection_reasons?.map((r, i) => (
-                          <li key={i} className="flex items-start gap-3">
-                            <span className="w-1.5 h-1.5 bg-red-500 rounded-full mt-1.5 flex-shrink-0" />
-                            {r}
-                          </li>
+                      <div className="grid grid-cols-1 gap-2">
+                        {report.result?.priority_roadmap?.map((item, i) => (
+                          <div
+                            key={i}
+                            className="bg-slate-950 p-4 rounded-2xl border border-slate-800 text-sm text-slate-300 flex items-start gap-3"
+                          >
+                            <span className="text-emerald-400">✓</span> {item}
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     </div>
                   </div>
                 )}

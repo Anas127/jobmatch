@@ -7,23 +7,18 @@ from supabase import create_client, Client
 import os
 import json
 import re
+import time
 from dotenv import load_dotenv
 import pdfplumber
 import docx
 
-from fastapi import FastAPI, UploadFile, File, Request, HTTPException
-import time
-
-# Temporary memory to store IP timestamps
-request_history = {}
-
-# LIMIT: 5 scans per hour per IP
-RATE_LIMIT_COUNT = 5
-RATE_LIMIT_WINDOW = 3600  # 1 hour in seconds
-
 load_dotenv()
 
-# Initialize OpenAI & Supabase
+# Rate limit configuration
+request_history = {}
+RATE_LIMIT_COUNT = 5
+RATE_LIMIT_WINDOW = 3600
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 supabase: Client = create_client(
     os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
@@ -33,7 +28,7 @@ app = FastAPI()
 
 @app.get("/")
 async def root():
-    return {"status": "alive"}
+    return {"status": "alive", "message": "JobMatch Backend is awake"}
 
 app.add_middleware(
     CORSMiddleware,
@@ -51,15 +46,12 @@ class JobRequest(BaseModel):
 
 @app.post("/extract")
 async def extract_skills(request: JobRequest, raw_request: Request):
-
     user_ip = raw_request.client.host
     now = time.time()
 
-    # Clean up old requests from history
     if user_ip not in request_history:
         request_history[user_ip] = []
 
-    # Filter out requests older than 1 hour
     request_history[user_ip] = [
         t for t in request_history[user_ip] if now - t < RATE_LIMIT_WINDOW]
 
@@ -68,7 +60,8 @@ async def extract_skills(request: JobRequest, raw_request: Request):
             status_code=429, detail="Rate limit exceeded. Try again in an hour.")
 
     request_history[user_ip].append(now)
-    # 1. AI Analysis with "I Robbed You" Value Strategy
+
+    # UPDATED PROMPT: Added free_critique and trap_to_avoid
     prompt = f"""
 ROLE: Lead Technical Architect at a high-growth startup.
 TASK: Audit this candidate for the specific role. Be technical and ruthless.
@@ -80,6 +73,7 @@ JSON OUTPUT ONLY:
 {{
   "score": 0-100,
   "level": "Identify seniority (Junior/Mid/Senior/Staff)",
+  "free_critique": "A blunt, brutal 1-sentence reality check on why their CV might be rejected immediately.",
   "missing_skills": ["List 3-5 high-level architectural or library gaps"],
   "explanation": "Brutally honest 2-sentence summary of why they might fail the interview.",
   "cv_enhancement": {{
@@ -88,7 +82,8 @@ JSON OUTPUT ONLY:
   }},
   "interview_prep": {{
     "killer_question": "The hardest technical question this specific company will ask based on the JD",
-    "winning_answer": "A perfect, high-seniority response to that question"
+    "winning_answer": "A perfect, high-seniority response to that question",
+    "trap_to_avoid": "The #1 specific thing or phrase this candidate should NEVER say during this interview."
   }},
   "priority_roadmap": [
     "A 48-hour 'Proof of Concept' project name to build to prove mastery",
@@ -107,7 +102,6 @@ JSON OUTPUT ONLY:
     ai_data = json.loads(
         re.search(r"\{.*\}", response.choices[0].message.content, re.DOTALL).group())
 
-    # 2. Save to Supabase
     db_entry = {
         "job_text": request.job_description,
         "cv_text": request.cv,
