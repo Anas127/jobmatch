@@ -10,9 +10,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
-  const [scanCount, setScanCount] = useState(
-    parseInt(localStorage.getItem("scan_count") || "0"),
-  );
+  
 
   // 1. TOP LEVEL HOOKS (Persistence)
   useEffect(() => {
@@ -106,10 +104,7 @@ function App() {
   }, [report, loadExistingReport]);
 
   const handleAnalyze = async () => {
-    if (scanCount >= 2 && (!report || !report.is_paid)) {
-      setErrorMessage("Free limit reached. Unlock PRO to continue updating.");
-      return;
-    }
+    
 
     setLoading(true);
     setErrorMessage("");
@@ -139,9 +134,7 @@ function App() {
       });
       const data = await res.json();
 
-      const newCount = scanCount + 1;
-      setScanCount(newCount);
-      localStorage.setItem("scan_count", newCount.toString());
+      
       localStorage.setItem("active_report_id", data.id);
       window.history.pushState({}, "", `?report_id=${data.id}`);
 
@@ -287,7 +280,7 @@ function App() {
                   </div>
                 </div>
 
-                {!report.is_paid ? (
+                {false ? (
                   <div className="space-y-6">
                     <div className="space-y-4 opacity-40 pointer-events-none grayscale">
                       <div className="h-20 bg-slate-800 rounded-2xl border border-slate-700 border-dashed flex items-center justify-center font-bold text-xs text-slate-500 uppercase tracking-widest text-center">
