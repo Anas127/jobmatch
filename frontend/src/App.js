@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Analytics } from "@vercel/analytics/react";
 
 const API_URL = "https://jobmatch-7zo9.onrender.com";
@@ -10,7 +10,6 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
-  
 
   // 1. TOP LEVEL HOOKS (Persistence)
   useEffect(() => {
@@ -28,84 +27,13 @@ function App() {
     if (savedCV && !cvText) setCvText(savedCV);
   }, []);
 
-  // 2. DATA LOADING LOGIC
-  const loadExistingReport = useCallback(async (id) => {
-    if (!id) return;
-    try {
-      const res = await fetch(`${API_URL}/report/${id}`);
-      const data = await res.json();
-      if (data && !data.error) {
-        setReport(data);
-        setText((prev) => prev || data.job_text || "");
-        setCvText((prev) => prev || data.cv_text || "");
-      }
-    } catch (err) {
-      console.error("Database sync failed");
-    }
-  }, []);
+  
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const isUnlocked = params.get("unlocked") === "true";
-    const urlId = params.get("report_id");
-    const savedId = localStorage.getItem("active_report_id");
-    const activeId = urlId || savedId;
+ 
 
-    if (activeId) {
-      if (isUnlocked) {
-        fetch(`${API_URL}/unlock/${activeId}`, { method: "POST" }).then(() => {
-          loadExistingReport(activeId);
-          const url = new URL(window.location.href);
-          url.searchParams.set("report_id", activeId);
-          url.searchParams.delete("unlocked");
-          window.history.replaceState({}, "", url.toString());
-        });
-      } else {
-        loadExistingReport(activeId);
-      }
-    }
-  }, [loadExistingReport]);
-
-  // 3. PAYPAL RENDER HOOK
-  useEffect(() => {
-    if (window.paypal && report && !report.is_paid) {
-      const container = document.getElementById("paypal-button-container");
-      if (container) {
-        container.innerHTML = "";
-        window.paypal
-          .Buttons({
-            style: {
-              layout: "vertical",
-              color: "gold",
-              shape: "rect",
-              label: "pay",
-            },
-            createOrder: (data, actions) => {
-              return actions.order.create({
-                purchase_units: [
-                  {
-                    amount: { value: "3.00" },
-                    description: `Pro Audit for Report: ${report.id}`,
-                  },
-                ],
-              });
-            },
-            onApprove: async (data, actions) => {
-              await fetch(`${API_URL}/unlock/${report.id}`, { method: "POST" });
-              await loadExistingReport(report.id);
-            },
-            onError: (err) => {
-              setErrorMessage("Payment process failed. Please try again.");
-            },
-          })
-          .render("#paypal-button-container");
-      }
-    }
-  }, [report, loadExistingReport]);
+  
 
   const handleAnalyze = async () => {
-    
-
     setLoading(true);
     setErrorMessage("");
     setStatusMsg("Initializing Architect Brain...");
@@ -134,11 +62,7 @@ function App() {
       });
       const data = await res.json();
 
-      
-      localStorage.setItem("active_report_id", data.id);
-      window.history.pushState({}, "", `?report_id=${data.id}`);
-
-      await loadExistingReport(data.id);
+      setReport(data);
       window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
     } catch (err) {
       setErrorMessage("Server is busy. Try again in 10s.");
@@ -216,7 +140,7 @@ function App() {
                 <span className="animate-pulse">{statusMsg}</span>
               </div>
             ) : (
-              "Run Brutal Technical Audit"
+              "Generate AI Career Report"
             )}
           </button>
         </div>

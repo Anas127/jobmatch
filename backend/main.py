@@ -3,7 +3,6 @@ from pydantic import BaseModel
 from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
-from supabase import create_client, Client
 import os
 import json
 import re
@@ -20,8 +19,7 @@ RATE_LIMIT_COUNT = 5
 RATE_LIMIT_WINDOW = 3600
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-supabase: Client = create_client(
-    os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
+
 
 app = FastAPI()
 
@@ -104,33 +102,11 @@ JSON OUTPUT ONLY:
     ai_data = json.loads(
         re.search(r"\{.*\}", response.choices[0].message.content, re.DOTALL).group())
 
-    db_entry = {
-        "job_text": request.job_description,
-        "cv_text": request.cv,
+    return {
         "result": ai_data,
-        "is_paid": False
+        "job_text": request.job_description,
+        "cv_text": request.cv
     }
-
-    data, count = supabase.table("reports").insert(db_entry).execute()
-    report_id = data[1][0]['id']
-
-    return {"id": report_id, "result": ai_data}
-
-
-@app.post("/unlock/{report_id}")
-async def unlock_report(report_id: str):
-    supabase.table("reports").update(
-        {"is_paid": True}).eq("id", report_id).execute()
-    return {"status": "unlocked"}
-
-
-@app.get("/report/{report_id}")
-async def get_report(report_id: str):
-    data, count = supabase.table("reports").select(
-        "*").eq("id", report_id).execute()
-    if not data[1]:
-        return {"error": "Not found"}
-    return data[1][0]
 
 
 @app.post("/upload-cv")
