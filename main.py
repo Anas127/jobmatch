@@ -144,8 +144,8 @@ Candidate CV:
 Return valid JSON only.
 
 {{
-  "cover_letter": "<3 paragraphs. Para 1: strong opening hook referencing the specific company and role. Para 2: 2-3 concrete achievements from their CV most relevant to the JD with metrics where available. Para 3: confident close with a specific value proposition for this company. No filler phrases like 'I am writing to express my interest'.>",
-  "cold_email": "<a LinkedIn cold message to the hiring manager. Under 60 words. Sentence 1: one specific observation about the company or role that shows research. Sentence 2: one concrete achievement from their CV relevant to the role. Sentence 3: soft CTA asking for a 15-minute call.>",
+  "cover_letter": "<3 paragraphs. Para 1: open with a specific hook about the company's product or technical challenge — never start with 'As a' or 'I am writing' or 'I am excited'. Para 2: 2-3 concrete achievements from their CV most relevant to the JD with metrics where available. Para 3: confident close with a specific value proposition for this company. If no company name is found in the JD, refer to 'your team' — never use '[Company Name]' placeholder.>",
+  "cold_email": "<a LinkedIn cold message to the hiring manager. Under 60 words. Sentence 1: one specific observation about the company's product or technical challenge. Sentence 2: one concrete achievement from their CV relevant to the role. Sentence 3: soft CTA asking for a 15-minute call. Never use '[Company Name]' — use 'your team' if no name is found.>",
   "linkedin_headline": "<punchy LinkedIn headline optimized for this type of role. Under 15 words. Include their strongest skill and target role type.>",
   "linkedin_summary": "<3-sentence LinkedIn About section. Positions them for this type of role, highlights their strongest achievements with specifics, ends with what they are looking for.>"
 }}"""
