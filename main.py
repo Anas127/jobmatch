@@ -45,11 +45,9 @@ def check_rate_limit(user_ip: str):
     now = time.time()
     if user_ip not in request_history:
         request_history[user_ip] = []
-    request_history[user_ip] = [
-        t for t in request_history[user_ip] if now - t < RATE_LIMIT_WINDOW]
+    request_history[user_ip] = [t for t in request_history[user_ip] if now - t < RATE_LIMIT_WINDOW]
     if len(request_history[user_ip]) >= RATE_LIMIT_COUNT:
-        raise HTTPException(
-            status_code=429, detail="Rate limit exceeded. Try again in an hour.")
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again in an hour.")
     request_history[user_ip].append(now)
 
 
