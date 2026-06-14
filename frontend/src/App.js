@@ -125,6 +125,11 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ job_description: text, cv: cvText }),
       });
+      if (res.status === 429) {
+        setErrorMessage("You've used your 5 free analyses for this hour. Try again in 60 minutes.");
+        return;
+      }
+      if (!res.ok) throw new Error("Server error");
       const data = await res.json();
       setReport(data);
       window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
