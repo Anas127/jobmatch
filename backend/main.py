@@ -1,11 +1,9 @@
 from fastapi import FastAPI, UploadFile, File, Request, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 import os
 import json
-import re
 import time
 from dotenv import load_dotenv
 import pdfplumber
@@ -13,26 +11,18 @@ import docx
 
 load_dotenv()
 
-# Rate limit configuration
 request_history = {}
 RATE_LIMIT_COUNT = 5
 RATE_LIMIT_WINDOW = 3600
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-
 app = FastAPI()
-
-
-@app.get("/")
-async def root():
-    return {"status": "alive", "message": "JobMatch Backend is awake"}
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://jobmatch-fjik.vercel.app"
-    ],
+    allow_origins=["https://jobmatch-fjik.vercel.app",
+                   "http://localhost:3000",],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,6 +32,11 @@ app.add_middleware(
 class JobRequest(BaseModel):
     job_description: str
     cv: str = ""
+
+
+@app.get("/")
+async def root():
+    return {"status": "alive", "message": "JobMatch Backend is awake"}
 
 
 @app.post("/extract")
@@ -61,51 +56,52 @@ async def extract_skills(request: JobRequest, raw_request: Request):
 
     request_history[user_ip].append(now)
 
-    # UPDATED PROMPT: Added free_critique and trap_to_avoid
-    prompt = f"""
-ROLE: Lead Technical Architect at a high-growth startup.
-TASK: Audit this candidate for the specific role. Be technical and ruthless.
+    prompt = f"""You are a senior technical recruiter and staff engineer reviewing a candidate for rejection or advancement. Be specific, technical, and always name exact technologies — never be generic.
 
-Job Description: {request.job_description[:1500]}
-CV Content: {request.cv[:1500]}
+Job Description:
+{request.job_description[:3000]}
 
-JSON OUTPUT ONLY:
+Candidate CV:
+{request.cv[:3000]}
+
+Base every judgment strictly on the content above. Return valid JSON only.
+
 {{
-  "score": 0-100,
-  "level": "Identify seniority (Junior/Mid/Senior/Staff)",
-  "free_critique": "A blunt, brutal 1-sentence reality check on why their CV might be rejected immediately.",
-  "missing_skills": ["List 3-5 high-level architectural or library gaps"],
-  "explanation": "Brutally honest 2-sentence summary of why they might fail the interview.",
+  "score": <integer 0-100>,
+  "level": "<Junior|Mid|Senior|Staff>",
+  "free_critique": "<one brutal sentence: the single biggest red flag that would get this CV rejected in 10 seconds>",
+  "missing_skills": ["<exact technology or concept name>"],
+  "explanation": "<two sentences: why this candidate specifically fails the technical screen for this role>",
   "cv_enhancement": {{
-    "rewrite_bullet": "Rewrite their most relevant CV bullet point to be high-impact and metric-driven",
-    "hidden_keywords": ["3 specific niche keywords the ATS is looking for"]
+    "rewrite_bullet": "<rewrite the weakest or most relevant bullet from their CV to be metric-driven and ATS-optimized for this role>",
+    "hidden_keywords": ["<exact ATS keyword from the JD that is missing from the CV>"]
   }},
   "interview_prep": {{
-    "killer_question": "The hardest technical question this specific company will ask based on the JD",
-    "winning_answer": "A perfect, high-seniority response to that question",
-    "trap_to_avoid": "The #1 specific thing or phrase this candidate should NEVER say during this interview."
+    "killer_question": "<the hardest question this company will ask that directly targets the candidate's identified gap>",
+    "winning_answer": "<a senior-level answer with specific technical detail that would impress the interviewer>",
+    "trap_to_avoid": "<the exact phrase or approach this candidate would likely say that would immediately disqualify them>"
   }},
   "priority_roadmap": [
-    "A 48-hour 'Proof of Concept' project name to build to prove mastery",
-    "The specific documentation page or advanced concept to read TONIGHT"
+    "<Day 1: specific thing to build or read tonight to close the biggest gap>",
+    "<Day 2-3: specific project or concept that proves competency in the missing area>",
+    "<Week 1: what to add to GitHub or CV to make the next application stronger>"
   ],
-  "rejection_reasons": ["Technical mismatch point 1", "CV weakness point 2"]
-}}
-"""
+  "rejection_reasons": ["<specific technical mismatch>", "<specific CV weakness>"]
+}}"""
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.3
+        response_format={"type": "json_object"},
+        temperature=0.3,
     )
 
-    ai_data = json.loads(
-        re.search(r"\{.*\}", response.choices[0].message.content, re.DOTALL).group())
+    ai_data = json.loads(response.choices[0].message.content)
 
     return {
         "result": ai_data,
         "job_text": request.job_description,
-        "cv_text": request.cv
+        "cv_text": request.cv,
     }
 
 
