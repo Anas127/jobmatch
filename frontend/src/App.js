@@ -50,8 +50,8 @@ function OutputSkeleton({ lines = 4 }) {
 }
 
 function App() {
-  const [text, setText] = useState(() => localStorage.getItem("temp_job_text") || "");
-  const [cvText, setCvText] = useState(() => localStorage.getItem("temp_cv_text") || "");
+  const [text, setText] = useState("");
+  const [cvText, setCvText] = useState("");
   const [report, setReport] = useState(null);
   const [outputs, setOutputs] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -59,24 +59,12 @@ function App() {
   const [errorMessage, setErrorMessage] = useState("");
   const [statusMsg, setStatusMsg] = useState("");
 
-  const persistJob = (val) => {
-    setText(val);
-    localStorage.setItem("temp_job_text", val);
-  };
-
-  const persistCV = (val) => {
-    setCvText(val);
-    localStorage.setItem("temp_cv_text", val);
-  };
-
   const handleClear = () => {
     setText("");
     setCvText("");
     setReport(null);
     setOutputs(null);
     setErrorMessage("");
-    localStorage.removeItem("temp_job_text");
-    localStorage.removeItem("temp_cv_text");
   };
 
   const fetchOutputs = async (jobText, cvContent) => {
@@ -156,7 +144,7 @@ function App() {
         body: formData,
       });
       const data = await res.json();
-      persistCV(data.text);
+      setCvText(data.text);
     } catch (err) {
       setErrorMessage("CV upload failed. Try again or paste your CV text directly.");
     } finally {
@@ -194,13 +182,13 @@ function App() {
                 className="w-full h-64 bg-slate-900 border border-slate-800 p-4 rounded-2xl outline-none focus:border-indigo-500 transition"
                 placeholder="Paste Job Description..."
                 value={text}
-                onChange={(e) => persistJob(e.target.value)}
+                onChange={(e) => setText(e.target.value)}
               />
               <textarea
                 className="w-full h-32 bg-slate-900 border border-slate-800 p-4 rounded-2xl outline-none focus:border-indigo-500 transition"
                 placeholder="Paste CV Text..."
                 value={cvText}
-                onChange={(e) => persistCV(e.target.value)}
+                onChange={(e) => setCvText(e.target.value)}
               />
               <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex justify-between items-center">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">
