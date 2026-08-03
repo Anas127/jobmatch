@@ -1,19 +1,14 @@
-from fastapi import FastAPI, UploadFile, File, Request, HTTPException
+from fastapi import FastAPI, UploadFile, File, Request
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 import os
 import json
-import time
 from dotenv import load_dotenv
 import pdfplumber
 import docx
 
 load_dotenv()
-
-request_history = {}
-RATE_LIMIT_COUNT = 5
-RATE_LIMIT_WINDOW = 3600
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -41,18 +36,6 @@ class OutputRequest(BaseModel):
     cv: str = ""
 
 
-def check_rate_limit(user_ip: str):
-    now = time.time()
-    if user_ip not in request_history:
-        request_history[user_ip] = []
-    request_history[user_ip] = [
-        t for t in request_history[user_ip] if now - t < RATE_LIMIT_WINDOW]
-    if len(request_history[user_ip]) >= RATE_LIMIT_COUNT:
-        raise HTTPException(
-            status_code=429, detail="Rate limit exceeded. Try again in an hour.")
-    request_history[user_ip].append(now)
-
-
 @app.get("/")
 async def root():
     return {"status": "alive", "message": "JobMatch Backend is awake"}
@@ -60,8 +43,6 @@ async def root():
 
 @app.post("/extract")
 async def extract_skills(request: JobRequest, raw_request: Request):
-    check_rate_limit(raw_request.client.host)
-
     prompt = f"""You are a senior technical recruiter and staff engineer reviewing a candidate for rejection or advancement. Be specific, technical, and always name exact technologies — never be generic.
 
 Job Description:
@@ -133,8 +114,6 @@ Rules:
 
 @app.post("/generate-outputs")
 async def generate_outputs(request: OutputRequest, raw_request: Request):
-    check_rate_limit(raw_request.client.host)
-
     prompt = f"""You are a professional career coach and copywriter. Generate tailored job application content based on this candidate's CV and the target role. Be specific — never use generic phrases.
 
 Job Description:
